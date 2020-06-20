@@ -1,0 +1,19 @@
+name = "DataKnots4FHIR"
+uuid = "ab76b815-26a5-47b3-ad9d-b1b88f8ee454"
+authors = ["Clark C. Evans <cce@clarkevans.com>"]
+version = "0.1.0"
+
+[deps]
+DataKnots = "f3f2b2ad-91c8-5588-b964-d77e2d3bb090"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+
+[compat]
+DataKnots = "0.10.0"
+JSON = "0.21.0"
+julia = "1"
+
+[extras]
+NarrativeTest = "9563631e-acd4-5dd8-bebb-4cf36518960d"
+
+[targets]
+test = ["NarrativeTest"]
