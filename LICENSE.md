@@ -3,8 +3,7 @@ Copyright (c) 2020 Clark C. Evans, All Rights Reserved
 The DataKnots4FHIR.jl package will be released under the BuyLibre
 license. This work is also released under an Evaluation License.
 
-BuyLibre License
-~~~~~~~~~~~~~~~~
+### BuyLibre License
 
 So that we can build a commercially supported ecosystem of useful
 applications and adapters surrounding the DataKnots platform, we
@@ -15,8 +14,7 @@ given version will be released under the MIT/Apache license. At this
 time, the BuyLibre license is still under construction; but, early
 access can be obtained by emailing info@buylibre.org
 
-Evaluation License
-~~~~~~~~~~~~~~~~~~
+### Evaluation License
 
 This license is meant for the express purpose of permitting public
 evaluation (but not commercial use) and discussion of this software.

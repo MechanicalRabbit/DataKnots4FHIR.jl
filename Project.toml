@@ -6,6 +6,7 @@ version = "0.1.0"
 [deps]
 DataKnots = "f3f2b2ad-91c8-5588-b964-d77e2d3bb090"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [compat]
 DataKnots = "0.10.0"
