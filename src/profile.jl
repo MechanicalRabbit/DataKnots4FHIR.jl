@@ -15,31 +15,33 @@ function load_profiles()
 end
 
 Attributes =
-  Get(:snapshot) >> Is(Dict) >>
-  Get(:element) >> Is(Vector) >> Is(Dict) >>
-  Record(
-    :id => Get(:id) >> Is(String),
-    :min => Get(:min) >> convert.(Unsigned, It),
-    :path => Get(:path) >> Is(String),
-    :max => Get(:max) >> Is(String),
-    :type =>
-      Get(:type) >> Is(Union{Vector, Missing}) >>
-      Is(Vector) >> Is(Dict) >>
-      Record(
-        :code => Get(:code) >> Is(String),
-        :extension => Get(:extension) >> Is(Union{Vector, Missing}) >>
-          Is(Vector) >> Is(Dict) >>
-          Record(
-            :valueUrl => Get(:valueUrl) >> Is(Union{String, Missing}),
-            :url => Get(:url) >> Is(String),
-            :valueBoolean => Get(:valueBoolean) >> Is(Union{Bool, Missing})
-          )
-      )
+  It.snapshot >> Is(Dict) >>
+  It.element >> Is(Vector) >> Is(Dict) >>
+  Given(
+    :min => It.min >> convert.(Unsigned, It),
+    :max => It.max >> Is(String),
+    Record(
+      :id => It.id >> Is(String),
+      :path => It.path >> Is(String),
+      :type =>
+        It.type >> Is(Union{Vector, Missing}) >>
+        Is(Vector) >> Is(Dict) >>
+        Record(
+          :code => It.code >> Is(String),
+          :extension => It.extension >> Is(Union{Vector, Missing}) >>
+            Is(Vector) >> Is(Dict) >>
+            Record(
+              :valueUrl => It.valueUrl >> Is(Union{String, Missing}),
+              :url => It.url >> Is(String),
+              :valueBoolean => It.valueBoolean >> Is(Union{Bool, Missing})
+            )
+        )
+    )
   )
 
 UnpackProfile =
   Given(
-    :prefix => string.(Get(:type) >> Is(String), "."),
+    :prefix => string.(It.type >> Is(String), "."),
     Record(
       :id => It.id >> Is(String),
       :type => It.type >> Is(String),

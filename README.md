@@ -1,4 +1,4 @@
-# DataKnots4Postgres.jl
+# DataKnots4FHIR.jl
 
 *DataKnots4FHIR provides DataKnot interface to FHIR
 data sources.*
