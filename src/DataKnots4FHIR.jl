@@ -1,6 +1,10 @@
 module DataKnots4FHIR
 
-using Pkg.Artifacts
-fhir_r4_path = artifact"fhir-r4"
+using DataKnots
 
+export
+    testfhir
+
+include("profile.jl")
+	
 end
