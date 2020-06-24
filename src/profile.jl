@@ -33,10 +33,10 @@ end
 Attributes =
   It.snapshot >> Is(Dict) >>
   It.element >> Is(Vector) >> Is(Dict) >>
-  Filter(It.max .!= "0") >>
+  Filter(It.max >> String .!= "0") >>
   Record(
-    :id => It.id >> Is(String),
-    :path => It.path >> Is(String),
+    It.id >> Is(String),
+    It.path >> Is(String),
     :card => determine_cardinality.(It.min, It.max),
     :type =>
       It.type >> Is(Union{Vector, Missing}) >>
@@ -57,15 +57,18 @@ UnpackProfile =
   Given(
     :prefix => string.(It.type >> Is(String), "."),
     Record(
-      :id => It.id >> Is(String),
-      :type => It.type >> Is(String),
-      :kind => It.kind >> Is(String),
+      It.id >> Is(String),
+      It.type >> Is(String),
+      It.kind >> Is(String),
       :base => It.baseDefinition >> Is(Union{String, Missing}) >>
          replace.(It, "http://hl7.org/fhir/StructureDefinition/" => ""),
       :first => Attributes >> Take(1) >> Is1to1,
       :elements => Attributes >> Drop(1) >>
          Collect(
-           :id => replace.(It.id, Pair.(It.prefix, "")))))
+           :id => replace.(It.id, Pair.(It.prefix, ""))
+         )
+    )
+  )
 
 function verify_assumptions(knot)
     @assert(0 == length(get(knot[Filter(It.type .!== It.first.path)])))
@@ -73,7 +76,7 @@ end
 
 function testfhir()
     knot = load_profiles()[UnpackProfile]
-    verify_assumptions(knot)
+    #verify_assumptions(knot)
     return knot
 end
 
