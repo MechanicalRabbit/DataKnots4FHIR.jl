@@ -1,17 +1,17 @@
 using Pkg.Artifacts
 using JSON
 
-function load_profiles()
+function load_json(postfix)
     items = Dict{String, Any}[]
     for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
-        if !endswith(fname, ".profile.json")
+        if !endswith(fname, postfix)
             continue
         end
         item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-        @assert(item["resourceType"] == "StructureDefinition")
+        item["fileName"] = chop(fname, tail=length(postfix))
         push!(items, item)
     end
-    return convert(DataKnot, items)
+    return items
 end
 
 function determine_cardinality(min::Integer, max::String)
@@ -53,12 +53,13 @@ Attributes =
       )
   )
 
-UnpackProfile =
+UnpackProfiles =
   Given(
     :prefix => string.(It.type >> Is(String), "."),
     Record(
       It.id >> Is(String),
       It.type >> Is(String),
+      It.resourceType >> Is(String),
       It.kind >> Is(String),
       :base => It.baseDefinition >> Is(Union{String, Missing}) >>
          replace.(It, "http://hl7.org/fhir/StructureDefinition/" => ""),
@@ -70,13 +71,23 @@ UnpackProfile =
     )
   )
 
-function verify_assumptions(knot)
+function verify_profiles(knot)
+    IsDefinition = It.resourceType .!== "StructureDefinition"
     @assert(0 == length(get(knot[Filter(It.type .!== It.first.path)])))
+    @assert(0 == length(get(knot[Filter(IsDefinition)])))
 end
 
-function testfhir()
-    knot = load_profiles()[UnpackProfile]
-    #verify_assumptions(knot)
+function profiles()
+    knot = convert(DataKnot, load_json(".profile.json"))[UnpackProfiles]
+    verify_profiles(knot)
     return knot
 end
 
+function examples()
+    data = Dict{String, DataKnot}()
+    for item in load_json("-example.json")
+       rtype = item["resourceType"]
+       data[item["fileName"]] = convert(DataKnot, item)
+    end
+    return data
+end

@@ -3,7 +3,8 @@ module DataKnots4FHIR
 using DataKnots
 
 export
-    testfhir
+    profiles,
+    examples
 
 include("profile.jl")
 	
