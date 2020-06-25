@@ -3,7 +3,7 @@ module DataKnots4FHIR
 using DataKnots
 
 export
-    build_query
+    build_query,
     example
 
 include("profile.jl")

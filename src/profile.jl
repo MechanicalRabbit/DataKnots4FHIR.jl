@@ -112,14 +112,6 @@ function verify_profiles(knot)
     @assert(0 == length(get(knot[Filter(IsDefinition)])))
 end
 
-function profiles()
-    knot = convert(DataKnot, load_json(".profile.json"))[UnpackProfiles]
-    verify_profiles(knot)
-    return knot
-end
-
-profile(name) = get(profiles, Symbol(lowercase(String(name))), missing)
-
 function build_query(ctx::Context, elements::DataKnot, base::String)
     fields = DataKnots.AbstractQuery[]
     if ctx.depth > 3
