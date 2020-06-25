@@ -30,13 +30,16 @@ function determine_cardinality(min::Integer, max::String)
     end
 end
 
+get_base(path::String) = join(split(path, ".")[1:end-1],".")
+get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
+
 Attributes =
   It.snapshot >> Is(Dict) >>
   It.element >> Is(Vector) >> Is(Dict) >>
   Filter(It.max >> String .!= "0") >>
   Record(
-    It.id >> Is(String),
-    It.path >> Is(String),
+    :base => get_base.(It.path),
+    :name => get_name.(It.path),
     :card => determine_cardinality.(It.min, It.max),
     :type =>
       It.type >> Is(Union{Vector, Missing}) >>
@@ -53,6 +56,35 @@ Attributes =
       )
   )
 
+make_field_label(name::String, is_plural::Bool, code::String) = 
+  Symbol(is_plural ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
+
+function make_field_type(code::String)::DataKnots.AbstractQuery
+  lookup = Dict{String, DataKnots.AbstractQuery}( 
+     "string" => Is(String),
+     "boolean" => Is(Bool),
+     "integer" => Is(Int),
+     "code" => Is(String),
+     "uri" => Is(String),
+     "text" => Is(String)
+  )
+  return get(lookup, code, It)
+end
+
+UnpackFields = 
+  Filter("BackboneElement" .∉  It.type.code) >>
+  Given(
+    :is_plural => Count(It.type) .> 1,
+    :name => It.name,
+    :card => It.card,
+    It.type >>
+      Record(
+        :label => make_field_label.(It.name, It.is_plural, It.code),
+        :type => make_field_type.(It.code),
+        It.card,
+      ) 
+  )
+
 UnpackProfiles =
   Given(
     :prefix => string.(It.type >> Is(String), "."),
@@ -63,17 +95,12 @@ UnpackProfiles =
       It.kind >> Is(String),
       :base => It.baseDefinition >> Is(Union{String, Missing}) >>
          replace.(It, "http://hl7.org/fhir/StructureDefinition/" => ""),
-      :first => Attributes >> Take(1) >> Is1to1,
-      :elements => Attributes >> Drop(1) >>
-         Collect(
-           :id => replace.(It.id, Pair.(It.prefix, ""))
-         )
+      :elements => Attributes >> Drop(1)
     )
   )
 
 function verify_profiles(knot)
     IsDefinition = It.resourceType .!== "StructureDefinition"
-    @assert(0 == length(get(knot[Filter(It.type .!== It.first.path)])))
     @assert(0 == length(get(knot[Filter(IsDefinition)])))
 end
 
@@ -83,11 +110,36 @@ function profiles()
     return knot
 end
 
-function examples()
-    data = Dict{String, DataKnot}()
-    for item in load_json("-example.json")
-       rtype = item["resourceType"]
-       data[item["fileName"]] = convert(DataKnot, item)
-    end
-    return data
+function profile(name)
+    fname = "$(lowercase(name)).profile.json"
+    item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+    knot = convert(DataKnot, item)[UnpackProfiles]
+    return knot
 end
+
+function build_record(elements::DataKnot, base::String)
+    fields = DataKnots.AbstractQuery[]
+    for row in get(elements[Filter(It.base .== base) >> UnpackFields])
+       push!(fields, Get(row[:label]) >> row[:type] >> 
+                       row[:card] >> Label(row[:label]))
+    end
+    for row in get(elements[Filter(It.base .== base) >>
+                       Filter(It.type >> (It.code .== "BackboneElement"))])
+        nested = build_record(elements, "$(base).$(row[:name])")
+        push!(fields, nested >> row[:card] >> Label(Symbol(row[:name])))
+    end
+    return Is(Dict) >> Record(fields...)
+end 
+
+function build_record(resourceType::String)
+    meta = profile(resourceType)
+    return build_record(meta[It.elements], get(meta[It.id])) >> 
+             Label(Symbol(resourceType))
+end
+
+function example(name)
+    fname = "$(lowercase(name))-example.json"
+    item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+    return convert(DataKnot, item)[build_record(item["resourceType"])]
+end
+
