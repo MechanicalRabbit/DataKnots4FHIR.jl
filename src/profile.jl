@@ -1,6 +1,8 @@
 using Pkg.Artifacts
 using JSON
 
+profiles = Dict{Symbol, DataKnot}()
+
 function load_json(postfix)
     items = Dict{String, Any}[]
     for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
@@ -8,7 +10,7 @@ function load_json(postfix)
             continue
         end
         item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-        item["fileName"] = chop(fname, tail=length(postfix))
+        item["handle"] = Symbol(lowercase(chop(fname, tail=length(postfix))))
         push!(items, item)
     end
     return items
@@ -27,8 +29,8 @@ Attributes =
   Record(
     :base => get_base.(It.path),
     :name => get_name.(It.path),
-    :mandatory => (It.min .!== 0),
-    :singular => (It.max .== "1"),
+    :mandatory => ((It.min >> Is(Int)) .!== 0),
+    :singular => ((It.max >> Is(String)) .== "1"),
     :type =>
       It.type >> Is(Union{Vector, Missing}) >>
       Is(Vector) >> Is(Dict) >>
@@ -44,36 +46,40 @@ Attributes =
       )
   )
 
-make_field_label(name::String, is_variant::Bool, code::String) = 
+make_field_label(name::String, is_variant::Bool, code::String) =
   Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
 
-function compute_card(singular::Bool, mandatory::Bool, basetype::Type)
-  if mandatory
-     if singular
-         return Is(basetype) >> Is1to1
-     end
-     return Is(Vector) >> Is(basetype) >> Is1toN
-  end
-  if singular
-      return Is(Union{Missing, basetype}) >> Is0to1 
-  end
-  return coalesce.(It, Ref([])) >> Is(Vector) >> Is(basetype) >> Is0toN
+function compute_card(singular::Bool, mandatory::Bool,
+                      basetype::Type)::DataKnots.AbstractQuery
+    if mandatory
+        if singular
+            return Is(basetype) >> Is1to1
+        end
+        return Is(Vector) >> Is(basetype) >> Is1toN
+    end
+    if singular
+        return Is(Union{Missing, basetype}) >> Is0to1
+    end
+    return coalesce.(It, Ref([])) >> Is(Vector) >> Is(basetype) >> Is0toN
 end
 
 function make_field_type(code::String, singular::Bool,
                          mandatory::Bool)::DataKnots.AbstractQuery
-  lookup = Dict{String, DataType}(
-     "string" => String,
-     "boolean" => Bool,
-     "integer" => Int,
-     "code" => String,
-     "uri" => String,
-     "text" => String
-  )
-  return compute_card(singular, mandatory, get(lookup, code, Any))
+    lookup = Dict{String, DataType}(
+       "string" => String,
+       "boolean" => Bool,
+       "integer" => Int,
+       "code" => String,
+       "uri" => String,
+       "text" => String
+    )
+    if haskey(lookup, code)
+        return compute_card(singular, mandatory, lookup[code])
+    end
+    return compute_card(singular, mandatory, get(lookup, code, Any))
 end
 
-UnpackFields = 
+UnpackFields =
   Filter("BackboneElement" .∉  It.type.code) >>
   Given(
     :is_variant => Count(It.type) .> 1,
@@ -82,7 +88,7 @@ UnpackFields =
       Record(
         :label => make_field_label.(It.name, It.is_variant, It.code),
         :query => make_field_type.(It.code, It.singular, It.mandatory)
-      ) 
+      )
   )
 
 UnpackProfiles =
@@ -110,31 +116,26 @@ function profiles()
     return knot
 end
 
-function profile(name)
-    fname = "$(lowercase(name)).profile.json"
-    item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-    knot = convert(DataKnot, item)[UnpackProfiles]
-    return knot
-end
+profile(name) = get(profiles, Symbol(lowercase(String(name))), missing)
 
-function build_record(elements::DataKnot, base::String)
+function build_query(elements::DataKnot, base::String)
     fields = DataKnots.AbstractQuery[]
     for row in get(elements[Filter(It.base .== base) >> UnpackFields])
        push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
     end
     for row in get(elements[Filter(It.base .== base) >>
                        Filter(It.type >> (It.code .== "BackboneElement"))])
-        Nested = build_record(elements, "$(base).$(row[:name])")
+        Nested = build_query(elements, "$(base).$(row[:name])")
         Card = compute_card(row[:singular], row[:mandatory], Dict)
-        push!(fields, Get(Symbol(row[:name])) >> Card >> Nested >> 
+        push!(fields, Get(Symbol(row[:name])) >> Card >> Nested >>
                                                  Label(Symbol(row[:name])))
     end
     return Is(Dict) >> Record(fields...)
-end 
+end
 
-function build_record(resourceType::String)
-    meta = profile(resourceType)
-    return build_record(meta[It.elements], get(meta[It.id])) >> 
+function build_query(resourceType)
+    meta = profiles[Symbol(lowercase(String(resourceType)))]
+    return build_query(meta[It.elements], get(meta[It.id])) >>
              Label(Symbol(resourceType))
 end
 
@@ -149,3 +150,8 @@ function example(name)
     return convert(DataKnot, item)
 end
 
+# load profiles
+for item in load_json(".profile.json")
+    @assert !haskey(profiles, item["handle"])
+    profiles[item["handle"]] = convert(DataKnot, item)[UnpackProfiles]
+end;
