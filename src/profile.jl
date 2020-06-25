@@ -14,21 +14,8 @@ function load_json(postfix)
     return items
 end
 
-function determine_cardinality(min::Integer, max::String)
-    if min == 0
-        if max == "1"
-            return Is0to1
-        else
-            return Is0toN
-        end
-    else
-        if max == "1"
-            return Is1to1
-        else
-            return Is1toN
-        end
-    end
-end
+#switch(test::Bool, when_true::T, when_false::T)::T where {T} =
+#    test ? when_true : when_false
 
 get_base(path::String) = join(split(path, ".")[1:end-1],".")
 get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
@@ -40,7 +27,8 @@ Attributes =
   Record(
     :base => get_base.(It.path),
     :name => get_name.(It.path),
-    :card => determine_cardinality.(It.min, It.max),
+    :mandatory => (It.min .!== 0),
+    :singular => (It.max .== "1"),
     :type =>
       It.type >> Is(Union{Vector, Missing}) >>
       Is(Vector) >> Is(Dict) >>
@@ -56,32 +44,44 @@ Attributes =
       )
   )
 
-make_field_label(name::String, is_plural::Bool, code::String) = 
-  Symbol(is_plural ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
+make_field_label(name::String, is_variant::Bool, code::String) = 
+  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
 
-function make_field_type(code::String)::DataKnots.AbstractQuery
-  lookup = Dict{String, DataKnots.AbstractQuery}( 
-     "string" => Is(String),
-     "boolean" => Is(Bool),
-     "integer" => Is(Int),
-     "code" => Is(String),
-     "uri" => Is(String),
-     "text" => Is(String)
+function compute_card(singular::Bool, mandatory::Bool, basetype::Type)
+  if mandatory
+     if singular
+         return Is(basetype) >> Is1to1
+     end
+     return Is(Vector) >> Is(basetype) >> Is1toN
+  end
+  if singular
+      return Is(Union{Missing, basetype}) >> Is0to1 
+  end
+  return coalesce.(It, Ref([])) >> Is(Vector) >> Is(basetype) >> Is0toN
+end
+
+function make_field_type(code::String, singular::Bool,
+                         mandatory::Bool)::DataKnots.AbstractQuery
+  lookup = Dict{String, DataType}(
+     "string" => String,
+     "boolean" => Bool,
+     "integer" => Int,
+     "code" => String,
+     "uri" => String,
+     "text" => String
   )
-  return get(lookup, code, It)
+  return compute_card(singular, mandatory, get(lookup, code, Any))
 end
 
 UnpackFields = 
   Filter("BackboneElement" .∉  It.type.code) >>
   Given(
-    :is_plural => Count(It.type) .> 1,
-    :name => It.name,
-    :card => It.card,
+    :is_variant => Count(It.type) .> 1,
+    It.name, It.singular, It.mandatory,
     It.type >>
       Record(
-        :label => make_field_label.(It.name, It.is_plural, It.code),
-        :type => make_field_type.(It.code),
-        It.card,
+        :label => make_field_label.(It.name, It.is_variant, It.code),
+        :query => make_field_type.(It.code, It.singular, It.mandatory)
       ) 
   )
 
@@ -120,13 +120,14 @@ end
 function build_record(elements::DataKnot, base::String)
     fields = DataKnots.AbstractQuery[]
     for row in get(elements[Filter(It.base .== base) >> UnpackFields])
-       push!(fields, Get(row[:label]) >> row[:type] >> 
-                       row[:card] >> Label(row[:label]))
+       push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
     end
     for row in get(elements[Filter(It.base .== base) >>
                        Filter(It.type >> (It.code .== "BackboneElement"))])
-        nested = build_record(elements, "$(base).$(row[:name])")
-        push!(fields, nested >> row[:card] >> Label(Symbol(row[:name])))
+        Nested = build_record(elements, "$(base).$(row[:name])")
+        Card = compute_card(row[:singular], row[:mandatory], Dict)
+        push!(fields, Get(Symbol(row[:name])) >> Card >> Nested >> 
+                                                 Label(Symbol(row[:name])))
     end
     return Is(Dict) >> Record(fields...)
 end 
@@ -137,9 +138,14 @@ function build_record(resourceType::String)
              Label(Symbol(resourceType))
 end
 
+function path(name)
+    fname = "$(lowercase(name))-example.json"
+    return joinpath(artifact"fhir-r4", "fhir-r4", fname)
+end
+
 function example(name)
     fname = "$(lowercase(name))-example.json"
     item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-    return convert(DataKnot, item)[build_record(item["resourceType"])]
+    return convert(DataKnot, item)
 end
 
