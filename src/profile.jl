@@ -38,7 +38,8 @@ Attributes =
   Record(
     :base => get_base.(It.path),
     :name => get_name.(It.path),
-    :mandatory => ((It.min >> Is(Int)) .!== 0),
+    :mandatory => ((It.min >> Is(Int)) .!== 0) .&
+                   (.! contains.(It.path, "[x]")),
     :singular => ((It.max >> Is(String)) .== "1"),
     :type =>
       It.type >> Is(Union{Vector, Missing}) >>
