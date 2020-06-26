@@ -3,8 +3,9 @@ module DataKnots4FHIR
 using DataKnots
 
 export
-    build_query,
-    example
+    FHIRProfile,
+    FHIRExample,
+    FHIRSpecificationInventory
 
 include("profile.jl")
 	

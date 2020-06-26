@@ -8,11 +8,13 @@ license. This work is also released under an Evaluation License.
 So that we can build a commercially supported ecosystem of useful
 applications and adapters surrounding the DataKnots platform, we
 will be using BuyLibre (https://buylibre.org) cooperative licensing
-for vertical market software components such as this one. Under the
-BuyLibre license, our intent is to recover costs, after which the
-given version will be released under the MIT/Apache license. At this 
-time, the BuyLibre license is still under construction; but, early
-access can be obtained by emailing info@buylibre.org
+for vertical market software components such as this one. BuyLibre
+is a collective copyright licensing society, similar to ASCAP, 
+cooperatively owned by creators. Under the BuyLibre license, our
+intent is to recover costs, after which the given version will be
+released under the MIT/Apache license. At this time, the BuyLibre
+license is still under construction; commercial license to use this
+work can be obtained by emailing info@buylibre.org.
 
 ### Evaluation License
 
@@ -28,9 +30,10 @@ Works, are permitted provided that the following conditions are met:
 included in all copies or substantial portions of this software.
 
 2. You may only use this software for evaluation purposes, which are
-limited to: the discovery of how this software works, testing of function
-or performance, the creation of prototype applications used for
-demonstrations, and communicating bug reports and/or feature requests.
+limited to: the discovery of how this software works, testing of
+function or performance, the creation of prototype applications or
+improvements used for demonstrations, communicating bug reports
+or feature requests.
 
 3. You may not use or distribute this software, or any Derivative
 Work, in any form for commercial purposes. Examples of commercial
