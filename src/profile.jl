@@ -2,8 +2,9 @@ using Pkg.Artifacts
 using JSON
 
 mutable struct Context
-   depth::Int
+   seen::Vector{Symbol}
 end
+Context() = Context(Vector{Symbol}())
 
 profiles = Dict{Symbol, DataKnot}()
 primitives = Dict{Symbol, Type}()
@@ -71,11 +72,13 @@ function make_field_type(ctx::Context, code::String, singular::Bool,
     if haskey(primitives, code)
         return compute_card(singular, mandatory, primitives[code])
     end
-    if haskey(profiles, code)
+    if haskey(profiles, code) && !(code in ctx.seen) && code !== :extension
         profile = profiles[code]
-        return compute_card(singular, mandatory, Dict) >>
-                 build_query(ctx, profile[It.elements],
+        push!(ctx.seen, code)
+        Nested = build_query(ctx, profile[It.elements],
                              get(profile[It.id]))
+        @assert code == pop!(ctx.seen)
+        return compute_card(singular, mandatory, Dict) >> Nested
     end
     return compute_card(singular, mandatory, Any)
 end
@@ -114,11 +117,6 @@ end
 
 function build_query(ctx::Context, elements::DataKnot, base::String)
     fields = DataKnots.AbstractQuery[]
-    if ctx.depth > 3
-        return It
-    else
-        ctx.depth = ctx.depth + 1
-    end
     for row in get(elements[Filter(It.base .== base) >> UnpackFields(ctx)])
        if row[:label] == :extension
            continue  # TODO: enable extension recursion smartly
@@ -132,13 +130,12 @@ function build_query(ctx::Context, elements::DataKnot, base::String)
         push!(fields, Get(Symbol(row[:name])) >> Card >> Nested >>
                                                  Label(Symbol(row[:name])))
     end
-    ctx.depth = ctx.depth -1
     return Is(Dict) >> Record(fields...)
 end
 
 function build_query(resourceType)
     meta = profiles[Symbol(lowercase(String(resourceType)))]
-    return build_query(Context(0), meta[It.elements], get(meta[It.id])) >>
+    return build_query(Context(), meta[It.elements], get(meta[It.id])) >>
              Label(Symbol(resourceType))
 end
 
