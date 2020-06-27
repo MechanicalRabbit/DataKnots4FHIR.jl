@@ -77,7 +77,7 @@ function make_field_type(ctx::Context, code::String, singular::Bool,
         return compute_card(singular, mandatory, primitive_registry[code])
     end
     if haskey(profile_registry, code)
-        if ctx.flatten || code in ctx.seen
+        if ctx.flatten || code in ctx.seen || code == :resource
             return compute_card(singular, mandatory, Dict)
         end
         profile = profile_registry[code]
@@ -171,6 +171,7 @@ function FHIRProfile(version::Symbol, resourceType::String)
     end
     meta = profile_registry[Symbol(lowercase(resourceType))]
     return Is(Dict) >>
+           Filter((It.resourceType >> Is(String)) .== resourceType) >>
            build_profile(Context(), meta[It.elements],
                          get(meta[It.id]), true) >>
            Label(Symbol(resourceType))
@@ -220,6 +221,7 @@ function FHIRSpecificationInventory(version::Symbol)
 end
 
 function regression()
+    load_profile_registry()
     inventory = FHIRSpecificationInventory(:R4)
     for profile in keys(inventory)
         println(profile)
