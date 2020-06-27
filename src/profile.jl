@@ -121,9 +121,12 @@ UnpackProfiles =
     )
   )
 
-function build_profile(ctx::Context, elements::DataKnot, base::String)
+function build_profile(ctx::Context, elements::DataKnot, base::String,
+                       top::Bool = false)
     fields = DataKnots.AbstractQuery[]
-    push!(fields, Get(:resourceType) >> Is(String))
+    if top
+        push!(fields, Get(:resourceType) >> Is(String))
+    end
     for row in get(elements[Filter(It.base .== base) >> UnpackFields(ctx)])
        if row[:label] == :extension
            continue  # TODO: enable extension recursion smartly
@@ -168,7 +171,8 @@ function FHIRProfile(version::Symbol, resourceType::String)
     end
     meta = profile_registry[Symbol(lowercase(resourceType))]
     return Is(Dict) >>
-           build_profile(Context(), meta[It.elements], get(meta[It.id])) >>
+           build_profile(Context(), meta[It.elements],
+                         get(meta[It.id]), true) >>
            Label(Symbol(resourceType))
 end
 
