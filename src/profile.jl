@@ -3,14 +3,14 @@ using JSON
 
 IsInt       = Is(Int)
 IsBool      = Is(Bool)
-IsDict      = Is(Dict)
+IsDict      = Is(Dict{String, Any})
 IsString    = Is(String)
-IsVector    = Is(Vector)
+IsVector    = Is(Vector{Any})
 IsOptInt    = Is(Union{Int, Missing})
 IsOptBool   = Is(Union{Bool, Missing})
-IsOptDict   = Is(Union{Dict, Missing})
+IsOptDict   = Is(Union{Dict{String, Any}, Missing})
 IsOptString = Is(Union{String, Missing})
-IsOptVector = Is(Union{Vector, Missing})
+IsOptVector = Is(Union{Vector{Any}, Missing})
 
 mutable struct Context
    seen::Vector{Symbol}
