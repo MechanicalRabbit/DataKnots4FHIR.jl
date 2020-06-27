@@ -213,3 +213,20 @@ function FHIRSpecificationInventory(version::Symbol)
     end
     return inventory
 end
+
+function regression()
+    inventory = FHIRSpecificationInventory(:R4)
+    for profile in keys(inventory)
+        println(profile)
+        Q = FHIRProfile(:R4, profile)
+        for ident in inventory[profile]
+            println(profile, " ", ident)
+            ex = FHIRExample(:R4, profile, ident)
+            try
+               ex[Q]
+            catch e
+               println(profile, " ", ident, " ! " , e)
+            end
+        end
+    end
+end
