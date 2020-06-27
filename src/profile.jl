@@ -123,6 +123,7 @@ UnpackProfiles =
 
 function build_profile(ctx::Context, elements::DataKnot, base::String)
     fields = DataKnots.AbstractQuery[]
+    push!(fields, Get(:resourceType) >> Is(String))
     for row in get(elements[Filter(It.base .== base) >> UnpackFields(ctx)])
        if row[:label] == :extension
            continue  # TODO: enable extension recursion smartly
