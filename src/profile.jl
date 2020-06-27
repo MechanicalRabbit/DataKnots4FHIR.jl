@@ -1,6 +1,17 @@
 using Pkg.Artifacts
 using JSON
 
+IsInt       = Is(Int)
+IsBool      = Is(Bool)
+IsDict      = Is(Dict)
+IsString    = Is(String)
+IsVector    = Is(Vector)
+IsOptInt    = Is(Union{Int, Missing})
+IsOptBool   = Is(Union{Bool, Missing})
+IsOptDict   = Is(Union{Dict, Missing})
+IsOptString = Is(Union{String, Missing})
+IsOptVector = Is(Union{Vector, Missing})
+
 mutable struct Context
    seen::Vector{Symbol}
    flatten::Bool
@@ -32,26 +43,26 @@ make_field_label(name::String, is_variant::Bool, code::String) =
   Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
 
 Attributes =
-  It.snapshot >> Is(Dict) >>
-  It.element >> Is(Vector) >> Is(Dict) >>
-  Filter(It.max >> String .!= "0") >>
+  It.snapshot >> IsDict >>
+  It.element >> IsVector >> IsDict >>
+  Filter((It.max >> IsString) .!= "0") >>
   Record(
     :base => get_base.(It.path),
     :name => get_name.(It.path),
-    :mandatory => ((It.min >> Is(Int)) .!== 0) .&
+    :mandatory => ((It.min >> IsInt) .!== 0) .&
                    (.! contains.(It.path, "[x]")),
-    :singular => ((It.max >> Is(String)) .== "1"),
+    :singular => ((It.max >> IsString) .== "1"),
     :type =>
-      It.type >> Is(Union{Vector, Missing}) >>
-      Is(Vector) >> Is(Dict) >>
+      It.type >> IsOptVector >>
+      IsVector >> IsDict >>
       Record(
-        :code => It.code >> Is(String),
-        :extension => It.extension >> Is(Union{Vector, Missing}) >>
-          Is(Vector) >> Is(Dict) >>
+        :code => It.code >> IsString,
+        :extension => It.extension >> IsOptVector >>
+          IsVector >> IsDict >>
           Record(
-            :valueUrl => It.valueUrl >> Is(Union{String, Missing}),
-            :url => It.url >> Is(String),
-            :valueBoolean => It.valueBoolean >> Is(Union{Bool, Missing})
+            :valueUrl => It.valueUrl >> IsOptString,
+            :url => It.url >> IsString,
+            :valueBoolean => It.valueBoolean >> IsOptBool
           )
       )
   )
@@ -62,12 +73,12 @@ function compute_card(singular::Bool, mandatory::Bool,
         if singular
             return Is(basetype) >> Is1to1
         end
-        return Is(Vector) >> Is(basetype) >> Is1toN
+        return IsVector >> Is(basetype) >> Is1toN
     end
     if singular
         return Is(Union{Missing, basetype}) >> Is0to1
     end
-    return coalesce.(It, Ref([])) >> Is(Vector) >> Is(basetype) >> Is0toN
+    return coalesce.(It, Ref([])) >> IsVector >> Is(basetype) >> Is0toN
 end
 
 function make_field_type(ctx::Context, code::String, singular::Bool,
@@ -109,13 +120,13 @@ UnpackFields(ctx::Context) =
 
 UnpackProfiles =
   Given(
-    :prefix => string.(It.type >> Is(String), "."),
+    :prefix => string.(It.type >> IsString, "."),
     Record(
-      It.id >> Is(String),
-      It.type >> Is(String),
-      It.resourceType >> Is(String),
-      It.kind >> Is(String),
-      :base => It.baseDefinition >> Is(Union{String, Missing}) >>
+      It.id >> IsString,
+      It.type >> IsString,
+      It.resourceType >> IsString,
+      It.kind >> IsString,
+      :base => It.baseDefinition >> IsOptString >>
          replace.(It, "http://hl7.org/fhir/StructureDefinition/" => ""),
       :elements => Attributes >> Drop(1)
     )
@@ -125,7 +136,7 @@ function build_profile(ctx::Context, elements::DataKnot, base::String,
                        top::Bool = false)
     fields = DataKnots.AbstractQuery[]
     if top
-        push!(fields, Get(:resourceType) >> Is(String))
+        push!(fields, Get(:resourceType) >> IsString)
     end
     for row in get(elements[Filter(It.base .== base) >> UnpackFields(ctx)])
        if row[:label] == :extension
@@ -170,8 +181,8 @@ function FHIRProfile(version::Symbol, resourceType::String)
        load_profile_registry()
     end
     meta = profile_registry[Symbol(lowercase(resourceType))]
-    return Is(Dict) >>
-           Filter((It.resourceType >> Is(String)) .== resourceType) >>
+    return IsDict >>
+           Filter((It.resourceType >> IsString) .== resourceType) >>
            build_profile(Context(), meta[It.elements],
                          get(meta[It.id]), true) >>
            Label(Symbol(resourceType))
