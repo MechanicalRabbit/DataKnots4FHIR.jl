@@ -12,63 +12,103 @@ IsOptDict   = Is(Union{Dict{String, Any}, Missing})
 IsOptString = Is(Union{String, Missing})
 IsOptVector = Is(Union{Vector{Any}, Missing})
 
+profile_registry = Dict{Symbol, DataKnot}()
+example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
+primitive_registry = Dict{Symbol, Type}()
+
+
+get_base(path::String) = join(split(path, ".")[1:end-1],".")
+get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
+
+UnpackProfiles =
+  Record(
+    It.id >> IsString,
+    :elements =>
+       It.snapshot >> IsDict >>
+       It.element >> IsVector >> IsDict >>
+       Filter((It.max >> IsString) .!= "0") >>
+       Record(
+         :base => get_base.(It.path),
+         :name => get_name.(It.path),
+         :mandatory => ((It.min >> IsInt) .!== 0) .&
+                        (.! contains.(It.path, "[x]")),
+         :singular => ((It.max >> IsString) .== "1"),
+         :type =>
+           It.type >> IsOptVector >>
+           IsVector >> IsDict >>
+           Record(
+             :code => It.code >> IsString,
+             :extension => It.extension >> IsOptVector >>
+               IsVector >> IsDict >>
+               Record(
+                 :valueUrl => It.valueUrl >> IsOptString,
+                 :url => It.url >> IsString,
+                 :valueBoolean => It.valueBoolean >> IsOptBool
+               )
+           )
+        ) >> Drop(1) # initial slot refers to self
+  )
+
+""" Context
+
+As we recursively expand profiles, bookkeep to ensure that they are
+only expanded once. Moreover, there are some profiles that are never
+expanded and others that are expanded only one level.
+"""
 mutable struct Context
    seen::Vector{Symbol}
    flatten::Bool
 end
 Context() = Context(Vector{Symbol}(), false)
+profiles_to_flatten = (:extension, )
+profiles_to_ignore = (:resource, )
 
-profile_registry = Dict{Symbol, DataKnot}()
-example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
-primitive_registry = Dict{Symbol, Type}()
-flatten_profile = (:extension, )
 
-function load_json(postfix)
-    items = Dict{String, Any}[]
-    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
-        if !endswith(fname, postfix)
-            continue
-        end
-        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-        item["handle"] = Symbol(lowercase(chop(fname, tail=length(postfix))))
-        push!(items, item)
+""" make_field
+
+To build the query to extract the subordinate structure. This is
+complicated since FHIR structures are recursive. The profile
+expansion context is used to bookeep what is to be expanded.
+"""
+function make_field(ctx::Context, code::String, singular::Bool,
+                    mandatory::Bool)::DataKnots.AbstractQuery
+    code = Symbol(lowercase(code))
+
+    if haskey(primitive_registry, code)
+        # If it is a known primitive, find the associated native type
+        # from the registry and cast the incoming value appropriately.
+
+        return make_declaration(singular, mandatory, primitive_registry[code])
     end
-    return items
+
+    if haskey(profile_registry, code)
+        if ctx.flatten || code in ctx.seen || code in profiles_to_ignore
+            # do not further unpack this resource
+            return make_declaration(singular, mandatory, Dict)
+        end
+
+        profile = profile_registry[code]
+        push!(ctx.seen, code)
+        ctx.flatten = code in profiles_to_flatten
+        Nested = build_profile(ctx, profile[It.elements],
+                               get(profile[It.id]))
+        ctx.flatten = false
+        @assert code == pop!(ctx.seen)
+        return make_declaration(singular, mandatory, Dict) >> Nested
+    end
+    return make_declaration(singular, mandatory, Any)
 end
 
-get_base(path::String) = join(split(path, ".")[1:end-1],".")
-get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
+""" make_declaration
 
-make_field_label(name::String, is_variant::Bool, code::String) =
-  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
-
-Attributes =
-  It.snapshot >> IsDict >>
-  It.element >> IsVector >> IsDict >>
-  Filter((It.max >> IsString) .!= "0") >>
-  Record(
-    :base => get_base.(It.path),
-    :name => get_name.(It.path),
-    :mandatory => ((It.min >> IsInt) .!== 0) .&
-                   (.! contains.(It.path, "[x]")),
-    :singular => ((It.max >> IsString) .== "1"),
-    :type =>
-      It.type >> IsOptVector >>
-      IsVector >> IsDict >>
-      Record(
-        :code => It.code >> IsString,
-        :extension => It.extension >> IsOptVector >>
-          IsVector >> IsDict >>
-          Record(
-            :valueUrl => It.valueUrl >> IsOptString,
-            :url => It.url >> IsString,
-            :valueBoolean => It.valueBoolean >> IsOptBool
-          )
-      )
-  )
-
-function compute_card(singular::Bool, mandatory::Bool,
-                      basetype::Type)::DataKnots.AbstractQuery
+This function returns a query that declares a level in the hierarchy,
+reflecting singular/mandatory properties and the basetype. The `Is`
+combinator makes a type assertion, converting `Any` into a specific
+type so that it could be managed at compile time. In the DataKnots
+model, the cardinality must also be indicated.
+"""
+function make_declaration(singular::Bool, mandatory::Bool,
+                          basetype::Type)::DataKnots.AbstractQuery
     if mandatory
         if singular
             return Is(basetype) >> Is1to1
@@ -81,30 +121,19 @@ function compute_card(singular::Bool, mandatory::Bool,
     return coalesce.(It, Ref([])) >> IsVector >> Is(basetype) >> Is0toN
 end
 
-function make_field_type(ctx::Context, code::String, singular::Bool,
-                         mandatory::Bool)::DataKnots.AbstractQuery
-    code = Symbol(lowercase(code))
-    if haskey(primitive_registry, code)
-        return compute_card(singular, mandatory, primitive_registry[code])
-    end
-    if haskey(profile_registry, code)
-        if ctx.flatten || code in ctx.seen || code == :resource
-            return compute_card(singular, mandatory, Dict)
-        end
-        profile = profile_registry[code]
-        #println("[", "  " ^ length(ctx.seen), code, ctx.seen)
-        push!(ctx.seen, code)
-        ctx.flatten = code in flatten_profile
-        Nested = build_profile(ctx, profile[It.elements],
-                               get(profile[It.id]))
-        ctx.flatten = false
-        @assert code == pop!(ctx.seen)
-        #println("]", "  " ^ length(ctx.seen), code, ctx.seen)
-        return compute_card(singular, mandatory, Dict) >> Nested
-    end
-    return compute_card(singular, mandatory, Any)
-end
+""" make_label
 
+Some FHIR fields are variants. When they are converted into a label,
+the underlying datatype is appended, after it's first letter is made
+uppercase. This is a minor operation, but easier to do in Julia.
+"""
+make_label(name::String, is_variant::Bool, code::String) =
+  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
+
+
+""" Unpack
+
+"""
 UnpackFields(ctx::Context) =
   Filter("BackboneElement" .∉  It.type.code) >>
   Given(
@@ -112,24 +141,9 @@ UnpackFields(ctx::Context) =
     It.name, It.singular, It.mandatory,
     It.type >>
       Record(
-        :label => make_field_label.(It.name, It.is_variant, It.code),
-        :query => make_field_type.(Ref(ctx), It.code,
-                                   It.singular, It.mandatory)
+        :label => make_label.(It.name, It.is_variant, It.code),
+        :query => make_field.(Ref(ctx), It.code, It.singular, It.mandatory)
       )
-  )
-
-UnpackProfiles =
-  Given(
-    :prefix => string.(It.type >> IsString, "."),
-    Record(
-      It.id >> IsString,
-      It.type >> IsString,
-      It.resourceType >> IsString,
-      It.kind >> IsString,
-      :base => It.baseDefinition >> IsOptString >>
-         replace.(It, "http://hl7.org/fhir/StructureDefinition/" => ""),
-      :elements => Attributes >> Drop(1)
-    )
   )
 
 function build_profile(ctx::Context, elements::DataKnot, base::String,
@@ -147,8 +161,8 @@ function build_profile(ctx::Context, elements::DataKnot, base::String,
     for row in get(elements[Filter(It.base .== base) >>
                        Filter(It.type >> (It.code .== "BackboneElement"))])
         Nested = build_profile(ctx, elements, "$(base).$(row[:name])")
-        Card = compute_card(row[:singular], row[:mandatory], Dict)
-        push!(fields, Get(Symbol(row[:name])) >> Card >> Nested >>
+        Declaration = make_declaration(row[:singular], row[:mandatory], Dict)
+        push!(fields, Get(Symbol(row[:name])) >> Declaration >> Nested >>
                                                  Label(Symbol(row[:name])))
     end
     return Record(fields...)
@@ -248,3 +262,17 @@ function regression()
         end
     end
 end
+
+function load_json(postfix)
+    items = Dict{String, Any}[]
+    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
+        if !endswith(fname, postfix)
+            continue
+        end
+        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+        item["handle"] = Symbol(lowercase(chop(fname, tail=length(postfix))))
+        push!(items, item)
+    end
+    return items
+end
+
