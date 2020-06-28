@@ -16,11 +16,10 @@ profile_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
 primitive_registry = Dict{Symbol, Type}()
 
-
 get_base(path::String) = join(split(path, ".")[1:end-1],".")
 get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
 
-UnpackProfiles =
+UnpackProfile =
   Record(
     It.id >> IsString,
     :elements =>
@@ -60,9 +59,8 @@ mutable struct Context
    flatten::Bool
 end
 Context() = Context(Vector{Symbol}(), false)
-profiles_to_flatten = (:extension, )
-profiles_to_ignore = (:resource, )
-
+profiles_to_flatten = (:Extension, )
+profiles_to_ignore = (:Resource, )
 
 """ make_field
 
@@ -72,7 +70,7 @@ expansion context is used to bookeep what is to be expanded.
 """
 function make_field(ctx::Context, code::String, singular::Bool,
                     mandatory::Bool)::DataKnots.AbstractQuery
-    code = Symbol(lowercase(code))
+    code = Symbol(code)
 
     if haskey(primitive_registry, code)
         # If it is a known primitive, find the associated native type
@@ -168,13 +166,34 @@ function build_profile(ctx::Context, elements::DataKnot, base::String,
     return Record(fields...)
 end
 
+function FHIRProfile(version::Symbol, resourceType)
+    @assert version == :R4
+    if length(profile_registry) == 0
+       load_profile_registry()
+    end
+    meta = profile_registry[Symbol(resourceType)]
+    return IsDict >>
+           Filter((It.resourceType >> IsString) .== resourceType) >>
+           build_profile(Context(), meta[It.elements],
+                         get(meta[It.id]), true) >>
+           Label(Symbol(resourceType))
+end
+
+function FHIRExample(version::Symbol, resourceType, id)
+    @assert version == :R4
+    if length(example_registry) == 0
+       load_example_registry()
+    end
+    return example_registry[(Symbol(resourceType), Symbol(id))]
+end
+
 function load_profile_registry()
     for item in load_json(".profile.json")
-        handle = Symbol(lowercase(item["id"]))
+        handle = Symbol(item["id"])
         if item["kind"] != "primitive-type"
             @assert !haskey(profile_registry, handle)
             profile_registry[handle] =
-                convert(DataKnot, item)[UnpackProfiles]
+                convert(DataKnot, item)[UnpackProfile]
             continue
         end
         @assert !haskey(primitive_registry, handle)
@@ -189,25 +208,11 @@ function load_profile_registry()
     end
 end
 
-function FHIRProfile(version::Symbol, resourceType::String)
-    @assert version == :R4
-    if length(profile_registry) == 0
-       load_profile_registry()
-    end
-    meta = profile_registry[Symbol(lowercase(resourceType))]
-    return IsDict >>
-           Filter((It.resourceType >> IsString) .== resourceType) >>
-           build_profile(Context(), meta[It.elements],
-                         get(meta[It.id]), true) >>
-           Label(Symbol(resourceType))
-end
-
 function load_example_registry()
     conflicts = Set{Tuple{Symbol, Symbol}}()
     for item in load_json("-example.json")
         if haskey(item, "id")
-            handle = (Symbol(lowercase(item["resourceType"])),
-                      Symbol(lowercase(item["id"])))
+            handle = (Symbol(item["resourceType"]), Symbol(item["id"]))
             if haskey(example_registry, handle)
                 push!(conflicts, handle)
             else
@@ -218,48 +223,6 @@ function load_example_registry()
     # unregister resource examples with duplicate identifiers
     for item in conflicts
         pop!(example_registry, item)
-    end
-end
-
-function FHIRExample(version::Symbol, resourceType::String, id::String)
-    @assert version == :R4
-    if length(example_registry) == 0
-       load_example_registry()
-    end
-    return example_registry[(Symbol(lowercase(resourceType)),
-                             Symbol(lowercase(id)))]
-end
-
-function FHIRSpecificationInventory(version::Symbol)
-    @assert version == :R4
-    inventory = Dict{String, Vector{String}}()
-    for resourceType in keys(profile_registry)
-         examples = Vector{String}()
-         for (rt, id) in keys(example_registry)
-             if rt == resourceType
-                 push!(examples, String(id))
-             end
-         end
-         inventory[String(resourceType)] = examples
-    end
-    return inventory
-end
-
-function regression()
-    load_profile_registry()
-    inventory = FHIRSpecificationInventory(:R4)
-    for profile in keys(inventory)
-        println(profile)
-        Q = FHIRProfile(:R4, profile)
-        for ident in inventory[profile]
-            println(profile, " ", ident)
-            ex = FHIRExample(:R4, profile, ident)
-            try
-               ex[Q]
-            catch e
-               println(profile, " ", ident, " ! " , e)
-            end
-        end
     end
 end
 
@@ -274,5 +237,40 @@ function load_json(postfix)
         push!(items, item)
     end
     return items
+end
+
+function FHIRSpecificationInventory(version::Symbol)
+    @assert version == :R4
+    load_profile_registry()
+    load_example_registry()
+    inventory = Dict{Symbol, Vector{Symbol}}()
+    for resourceType in keys(profile_registry)
+         examples = Vector{Symbol}()
+         for (rt, id) in keys(example_registry)
+             if rt == resourceType
+                 push!(examples, id)
+             end
+         end
+         inventory[resourceType] = examples
+    end
+    return inventory
+end
+
+function regression()
+    println("regression test....")
+    inventory = FHIRSpecificationInventory(:R4)
+    for profile in keys(inventory)
+        println(profile)
+        Q = FHIRProfile(:R4, profile)
+        for ident in inventory[profile]
+            println(profile, " ", ident)
+            ex = FHIRExample(:R4, profile, ident)
+            try
+               ex[Q]
+            catch e
+               println(profile, " ", ident, " ! " , e)
+            end
+        end
+    end
 end
 
