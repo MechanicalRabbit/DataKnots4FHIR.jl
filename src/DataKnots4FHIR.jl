@@ -30,20 +30,17 @@ example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
 primitive_registry = Dict{Symbol, Type}()
 
 # As we recursively expand profiles, we need bookkeeping to ensure
-# that they are expanded only once. Moreover, there are some profiles
-# that should only have its primitive attributes expanded, leaving
-# referenced profile data to be `Any` in the incoming data.
+# that they are expanded only once. When a profile is encountered for
+# a second time, it is unpacked only as a dictonary.
 mutable struct Context
    seen::Vector{Symbol}
-   flatten::Bool
 end
 
-Context() = Context(Vector{Symbol}(), false)
+Context() = Context(Vector{Symbol}())
 
-# At this time, we leave `Resource` elements unexpanded and we
-# do not expand any `Resource` children of `Extension` profiles.
-profiles_to_flatten = (:Extension, )
-profiles_to_ignore = (:Resource, )
+# Do not expand any `Extension` or `Resource` children, these can be
+# expressly cast into an appropriate type by the user as required.
+profiles_to_ignore = (:Resource, :Extension )
 
 # After we load the profile data from JSON, we use a DataKnot
 # query to do the 1st round of processing.
@@ -94,17 +91,15 @@ function make_field(ctx::Context, code::String, singular::Bool,
     end
 
     if haskey(profile_registry, code)
-        if ctx.flatten || code in ctx.seen || code in profiles_to_ignore
+        if code in ctx.seen || code in profiles_to_ignore
             # Don't process certain nested profiles; instead make them
             # available as dictionaries with the correct cardinality.
-            return make_declaration(singular, mandatory, Dict)
+            return make_declaration(singular, mandatory, Dict{String, Any})
         end
 
         profile = profile_registry[code]
         push!(ctx.seen, code)
-        ctx.flatten = code in profiles_to_flatten
         Nested = build_profile(ctx, get(profile[It.id]), profile[It.elements])
-        ctx.flatten = false
         @assert code == pop!(ctx.seen)
         return make_declaration(singular, mandatory, Dict) >> Nested
     end
@@ -170,12 +165,6 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         push!(fields, Get(:resourceType) >> IsString)
     end
     for row in get(elements[FieldElements(ctx, base)])
-        if row[:label] == :extension
-            # TODO: at this time, don't expand extensions till we know
-            # usage considerations; expanding extensions more than doubles
-            # the profile construction time.
-            continue
-        end
         push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
     end
     for row in get(elements[BackboneElements(ctx, base)])
