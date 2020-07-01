@@ -25,7 +25,7 @@ IsOptVector = Is(Union{Vector{Any}, Missing})
 # Since profiles refer to each other, we will create all of them
 # in one fell swoop rather than doing it dynamically.
 
-profile_registry = Dict{Symbol, DataKnot}()
+resource_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
 primitive_registry = Dict{Symbol, Type}()
 
@@ -90,14 +90,14 @@ function make_field(ctx::Context, code::String, singular::Bool,
         return make_declaration(singular, mandatory, primitive_registry[code])
     end
 
-    if haskey(profile_registry, code)
+    if haskey(resource_registry, code)
         if code in ctx.seen || code in profiles_to_ignore
             # Don't process certain nested profiles; instead make them
             # available as dictionaries with the correct cardinality.
             return make_declaration(singular, mandatory, Dict{String, Any})
         end
 
-        profile = profile_registry[code]
+        profile = resource_registry[code]
         push!(ctx.seen, code)
         Nested = build_profile(ctx, get(profile[It.id]), profile[It.elements])
         @assert code == pop!(ctx.seen)
@@ -178,12 +178,12 @@ end
 
 # We load all profiles in one fell swoop; note that primitive types
 # are tracked and handled in a different global `primitive_registry`.
-function load_profile_registry()
+function load_resource_registry()
     for item in load_json(".profile.json")
         handle = Symbol(item["id"])
-        if item["kind"] != "primitive-type"
-            @assert !haskey(profile_registry, handle)
-            profile_registry[handle] =
+        if item["kind"] == "resource"
+            @assert !haskey(resource_registry, handle)
+            resource_registry[handle] =
                 convert(DataKnot, item)[UnpackProfile]
             continue
         end
@@ -236,19 +236,19 @@ end
 # each profile query can be run on its corresponding examples.
 function sanity_check(version::Symbol = :R4)
     @assert version == :R4
-    load_profile_registry()
+    load_resource_registry()
     load_example_registry()
-    for profile in keys(profile_registry)
-        println(profile)
-        Q = FHIRProfile(version, profile)
+    for resource in keys(resource_registry)
+        println(resource)
+        Q = FHIRProfile(version, resource)
         for (rt, id) in keys(example_registry)
-            if rt == profile
-                println(profile, " ", id)
-                ex = FHIRExample(version, profile, id)
+            if rt == resource
+                println(resource, " ", id)
+                ex = FHIRExample(version, resource, id)
                 try
                     ex[Q]
                 catch e
-                    println(profile, " ", id, " ! " , e)
+                    println(resource, " ", id, " ! " , e)
                 end
             end
         end
@@ -256,38 +256,38 @@ function sanity_check(version::Symbol = :R4)
 end
 
 """
-    FHIRProfile(version, resourceType)
+    FHIRProfile(version, profile)
 
 This returns a `Query` that reflects the type definition for the given
-ResourceType. Note that this query profile doesn't expand generic
-`Resource` references, nor does it expand recursive occurances of the
-same resource type.
+profile. Note that this generated query profile doesn't expand generic
+`Resource` or `Extension` references, nor does it expand recursive occurances
+of the same profile.
 """
-function FHIRProfile(version::Symbol, resourceType)
+function FHIRProfile(version::Symbol, profile)
     @assert version == :R4
-    if length(profile_registry) == 0
-        load_profile_registry()
+    if length(resource_registry) == 0
+        load_resource_registry()
     end
-    meta = profile_registry[Symbol(resourceType)]
+    meta = resource_registry[Symbol(profile)]
     return IsDict >>
-           Filter((It.resourceType >> IsString) .== resourceType) >>
+           Filter((It.resourceType >> IsString) .== profile) >>
            build_profile(Context(), get(meta[It.id]),
                          meta[It.elements], true) >>
-           Label(Symbol(resourceType))
+           Label(Symbol(profile))
 end
 
 """
     FHIRExample(version, resourceType, id)
 
-This returns a `DataKnot` for an example of a resource type provided
+This returns a `DataKnot` for an example of a profile provided
 in the FHIR specification.
 """
-function FHIRExample(version::Symbol, resourceType, id)
+function FHIRExample(version::Symbol, profile, id)
     @assert version == :R4
     if length(example_registry) == 0
        load_example_registry()
     end
-    return example_registry[(Symbol(resourceType), Symbol(id))]
+    return example_registry[(Symbol(profile), Symbol(id))]
 end
 	
 end
