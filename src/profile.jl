@@ -1,6 +1,9 @@
 using Pkg.Artifacts
 using JSON
 
+# As a profile query is generated, it consists of type assertions;
+# since some of those can be complex, we'll define them here.
+
 IsInt       = Is(Int)
 IsBool      = Is(Bool)
 IsDict      = Is(Dict{String, Any})
@@ -12,9 +15,30 @@ IsOptDict   = Is(Union{Dict{String, Any}, Missing})
 IsOptString = Is(Union{String, Missing})
 IsOptVector = Is(Union{Vector{Any}, Missing})
 
+# Since profiles refer to each other, we will create all of them
+# in one fell swoop rather than doing it dynamically.
+
 profile_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
 primitive_registry = Dict{Symbol, Type}()
+
+# As we recursively expand profiles, we need bookkeeping to ensure
+# that they are expanded only once. Moreover, there are some profiles
+# that should only have its primitive attributes expanded, leaving
+# referenced profile data to be `Any` in the incoming data. Since
+# `Resource` is more like an abstract type, we ignore it, letting
+# the user do the sort of casting that they wish to do.
+mutable struct Context
+   seen::Vector{Symbol}
+   flatten::Bool
+end
+
+Context() = Context(Vector{Symbol}(), false)
+profiles_to_flatten = (:Extension, )
+profiles_to_ignore = (:Resource, )
+
+# After we load the profile data from JSON, we use a DataKnot
+# query to do the 1st round of processing.
 
 get_base(path::String) = join(split(path, ".")[1:end-1],".")
 get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
@@ -48,26 +72,9 @@ UnpackProfile =
         ) >> Drop(1) # initial slot refers to self
   )
 
-""" Context
-
-As we recursively expand profiles, bookkeep to ensure that they are
-only expanded once. Moreover, there are some profiles that are never
-expanded and others that are expanded only one level.
-"""
-mutable struct Context
-   seen::Vector{Symbol}
-   flatten::Bool
-end
-Context() = Context(Vector{Symbol}(), false)
-profiles_to_flatten = (:Extension, )
-profiles_to_ignore = (:Resource, )
-
-""" make_field
-
-To build the query to extract the subordinate structure. This is
-complicated since FHIR structures are recursive. The profile
-expansion context is used to bookeep what is to be expanded.
-"""
+# This function constructs a query for a given field that represents
+# the field primitive or subordinate structure. The context is used
+# to ensure we don't visit profiles recursively.
 function make_field(ctx::Context, code::String, singular::Bool,
                     mandatory::Bool)::DataKnots.AbstractQuery
     code = Symbol(code)
@@ -75,21 +82,20 @@ function make_field(ctx::Context, code::String, singular::Bool,
     if haskey(primitive_registry, code)
         # If it is a known primitive, find the associated native type
         # from the registry and cast the incoming value appropriately.
-
         return make_declaration(singular, mandatory, primitive_registry[code])
     end
 
     if haskey(profile_registry, code)
         if ctx.flatten || code in ctx.seen || code in profiles_to_ignore
-            # do not further unpack this resource
+            # Don't process certain nested profiles; instead make them
+            # available as dictionaries with the correct cardinality.
             return make_declaration(singular, mandatory, Dict)
         end
 
         profile = profile_registry[code]
         push!(ctx.seen, code)
         ctx.flatten = code in profiles_to_flatten
-        Nested = build_profile(ctx, profile[It.elements],
-                               get(profile[It.id]))
+        Nested = build_profile(ctx, get(profile[It.id]), profile[It.elements])
         ctx.flatten = false
         @assert code == pop!(ctx.seen)
         return make_declaration(singular, mandatory, Dict) >> Nested
@@ -97,14 +103,12 @@ function make_field(ctx::Context, code::String, singular::Bool,
     return make_declaration(singular, mandatory, Any)
 end
 
-""" make_declaration
 
-This function returns a query that declares a level in the hierarchy,
-reflecting singular/mandatory properties and the basetype. The `Is`
-combinator makes a type assertion, converting `Any` into a specific
-type so that it could be managed at compile time. In the DataKnots
-model, the cardinality must also be indicated.
-"""
+# This function returns a query that declares a level in the hierarchy,
+# reflecting singular/mandatory properties and the basetype. The `Is`
+# combinator makes a type assertion, converting `Any` into a specific
+# type so that it could be managed at compile time. In the DataKnots
+# model, the cardinality must also be indicated.
 function make_declaration(singular::Bool, mandatory::Bool,
                           basetype::Type)::DataKnots.AbstractQuery
     if mandatory
@@ -119,20 +123,14 @@ function make_declaration(singular::Bool, mandatory::Bool,
     return coalesce.(It, Ref([])) >> IsVector >> Is(basetype) >> Is0toN
 end
 
-""" make_label
-
-Some FHIR fields are variants. When they are converted into a label,
-the underlying datatype is appended, after it's first letter is made
-uppercase. This is a minor operation, but easier to do in Julia.
-"""
+# Some FHIR fields are variants. When they are converted into a label,
+# the underlying datatype is appended, after it's first letter is made
+# uppercase; do this as a Julia scalar function rather than in a query.
 make_label(name::String, is_variant::Bool, code::String) =
   Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
 
-
-""" Unpack
-
-"""
-UnpackFields(ctx::Context) =
+UnpackFields(ctx::Context, base::String) =
+  Filter(It.base .== base) >>
   Filter("BackboneElement" .∉  It.type.code) >>
   Given(
     :is_variant => Count(It.type) .> 1,
@@ -144,21 +142,27 @@ UnpackFields(ctx::Context) =
       )
   )
 
-function build_profile(ctx::Context, elements::DataKnot, base::String,
+function build_profile(ctx::Context, base::String, elements::DataKnot,
                        top::Bool = false)
     fields = DataKnots.AbstractQuery[]
     if top
+        # In the XML format, the resource type is the elementname; hence,
+        # it is not listed in the profile definition. Regardless, it is
+        # a required field for JSON based FHIR data, so we add it here.
         push!(fields, Get(:resourceType) >> IsString)
     end
-    for row in get(elements[Filter(It.base .== base) >> UnpackFields(ctx)])
+    for row in get(elements[UnpackFields(ctx, base)])
        if row[:label] == :extension
-           continue  # TODO: enable extension recursion smartly
+           # TODO: at this time, don't expand extensions till we know
+           # usage considerations; expanding extensions more than doubles
+           # the profile construction time.
+           continue
        end
        push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
     end
     for row in get(elements[Filter(It.base .== base) >>
                        Filter(It.type >> (It.code .== "BackboneElement"))])
-        Nested = build_profile(ctx, elements, "$(base).$(row[:name])")
+        Nested = build_profile(ctx, "$(base).$(row[:name])", elements)
         Declaration = make_declaration(row[:singular], row[:mandatory], Dict)
         push!(fields, Get(Symbol(row[:name])) >> Declaration >> Nested >>
                                                  Label(Symbol(row[:name])))
@@ -174,8 +178,8 @@ function FHIRProfile(version::Symbol, resourceType)
     meta = profile_registry[Symbol(resourceType)]
     return IsDict >>
            Filter((It.resourceType >> IsString) .== resourceType) >>
-           build_profile(Context(), meta[It.elements],
-                         get(meta[It.id]), true) >>
+           build_profile(Context(), get(meta[It.id]),
+                         meta[It.elements], true) >>
            Label(Symbol(resourceType))
 end
 
