@@ -25,15 +25,16 @@ primitive_registry = Dict{Symbol, Type}()
 # As we recursively expand profiles, we need bookkeeping to ensure
 # that they are expanded only once. Moreover, there are some profiles
 # that should only have its primitive attributes expanded, leaving
-# referenced profile data to be `Any` in the incoming data. Since
-# `Resource` is more like an abstract type, we ignore it, letting
-# the user do the sort of casting that they wish to do.
+# referenced profile data to be `Any` in the incoming data.
 mutable struct Context
    seen::Vector{Symbol}
    flatten::Bool
 end
 
 Context() = Context(Vector{Symbol}(), false)
+
+# At this time, we leave `Resource` elements unexpanded and we
+# do not expand any `Resource` children of `Extension` profiles.
 profiles_to_flatten = (:Extension, )
 profiles_to_ignore = (:Resource, )
 
@@ -103,7 +104,6 @@ function make_field(ctx::Context, code::String, singular::Bool,
     return make_declaration(singular, mandatory, Any)
 end
 
-
 # This function returns a query that declares a level in the hierarchy,
 # reflecting singular/mandatory properties and the basetype. The `Is`
 # combinator makes a type assertion, converting `Any` into a specific
@@ -129,7 +129,16 @@ end
 make_label(name::String, is_variant::Bool, code::String) =
   Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
 
-UnpackFields(ctx::Context, base::String) =
+# The elements of a profile are hierarchical, but are recorded in a
+# flat structure using dotted notation. The `BackboneElement` items
+# signify a nested structure, which we build recursively.
+BackboneElements(ctx::Context, base::String) =
+  Filter(It.base .== base) >>
+  Filter(It.type >> (It.code .== "BackboneElement"))
+
+# The remaining elements in a profile can be recursive another way,
+# they may be nested resources. This case is handled by `make_field`.
+FieldElements(ctx::Context, base::String) =
   Filter(It.base .== base) >>
   Filter("BackboneElement" .∉  It.type.code) >>
   Given(
@@ -142,6 +151,8 @@ UnpackFields(ctx::Context, base::String) =
       )
   )
 
+# Essentially, our profile queries build records of fields that are
+# nested records or concrete types properly cast.
 function build_profile(ctx::Context, base::String, elements::DataKnot,
                        top::Bool = false)
     fields = DataKnots.AbstractQuery[]
@@ -151,46 +162,26 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         # a required field for JSON based FHIR data, so we add it here.
         push!(fields, Get(:resourceType) >> IsString)
     end
-    for row in get(elements[UnpackFields(ctx, base)])
-       if row[:label] == :extension
-           # TODO: at this time, don't expand extensions till we know
-           # usage considerations; expanding extensions more than doubles
-           # the profile construction time.
-           continue
-       end
-       push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
+    for row in get(elements[FieldElements(ctx, base)])
+        if row[:label] == :extension
+            # TODO: at this time, don't expand extensions till we know
+            # usage considerations; expanding extensions more than doubles
+            # the profile construction time.
+            continue
+        end
+        push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
     end
-    for row in get(elements[Filter(It.base .== base) >>
-                       Filter(It.type >> (It.code .== "BackboneElement"))])
+    for row in get(elements[BackboneElements(ctx, base)])
         Nested = build_profile(ctx, "$(base).$(row[:name])", elements)
         Declaration = make_declaration(row[:singular], row[:mandatory], Dict)
-        push!(fields, Get(Symbol(row[:name])) >> Declaration >> Nested >>
-                                                 Label(Symbol(row[:name])))
+        push!(fields, Get(Symbol(row[:name])) >> Declaration >>
+                        Nested >> Label(Symbol(row[:name])))
     end
     return Record(fields...)
 end
 
-function FHIRProfile(version::Symbol, resourceType)
-    @assert version == :R4
-    if length(profile_registry) == 0
-       load_profile_registry()
-    end
-    meta = profile_registry[Symbol(resourceType)]
-    return IsDict >>
-           Filter((It.resourceType >> IsString) .== resourceType) >>
-           build_profile(Context(), get(meta[It.id]),
-                         meta[It.elements], true) >>
-           Label(Symbol(resourceType))
-end
-
-function FHIRExample(version::Symbol, resourceType, id)
-    @assert version == :R4
-    if length(example_registry) == 0
-       load_example_registry()
-    end
-    return example_registry[(Symbol(resourceType), Symbol(id))]
-end
-
+# We load all profiles in one fell swoop; note that primitive types
+# are tracked and handled in a different global `primitive_registry`.
 function load_profile_registry()
     for item in load_json(".profile.json")
         handle = Symbol(item["id"])
@@ -230,6 +221,8 @@ function load_example_registry()
     end
 end
 
+# Uses the "fhir-r4" package artifact to load a set of JSON files
+# representing profiles or examples from the FHIR specification.
 function load_json(postfix)
     items = Dict{String, Any}[]
     for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
@@ -243,38 +236,60 @@ function load_json(postfix)
     return items
 end
 
-function FHIRSpecificationInventory(version::Symbol)
+# Loop though the profiles and corresponding examples to see that
+# each profile query can be run on its corresponding examples.
+function sanity_check(version::Symbol = :R4)
     @assert version == :R4
     load_profile_registry()
     load_example_registry()
-    inventory = Dict{Symbol, Vector{Symbol}}()
-    for resourceType in keys(profile_registry)
-         examples = Vector{Symbol}()
-         for (rt, id) in keys(example_registry)
-             if rt == resourceType
-                 push!(examples, id)
-             end
-         end
-         inventory[resourceType] = examples
-    end
-    return inventory
-end
-
-function regression()
-    println("regression test....")
-    inventory = FHIRSpecificationInventory(:R4)
-    for profile in keys(inventory)
+    for profile in keys(profile_registry)
         println(profile)
-        Q = FHIRProfile(:R4, profile)
-        for ident in inventory[profile]
-            println(profile, " ", ident)
-            ex = FHIRExample(:R4, profile, ident)
-            try
-               ex[Q]
-            catch e
-               println(profile, " ", ident, " ! " , e)
+        Q = FHIRProfile(version, profile)
+        for (rt, id) in keys(example_registry)
+            if rt == profile
+                println(profile, " ", id)
+                ex = FHIRExample(version, profile, id)
+                try
+                    ex[Q]
+                catch e
+                    println(profile, " ", id, " ! " , e)
+                end
             end
         end
     end
 end
 
+"""
+    FHIRProfile(version, resourceType)
+
+This returns a `Query` that reflects the type definition for the given
+ResourceType. Note that this query profile doesn't expand generic
+`Resource` references, nor does it expand recursive occurances of the
+same resource type.
+"""
+function FHIRProfile(version::Symbol, resourceType)
+    @assert version == :R4
+    if length(profile_registry) == 0
+        load_profile_registry()
+    end
+    meta = profile_registry[Symbol(resourceType)]
+    return IsDict >>
+           Filter((It.resourceType >> IsString) .== resourceType) >>
+           build_profile(Context(), get(meta[It.id]),
+                         meta[It.elements], true) >>
+           Label(Symbol(resourceType))
+end
+
+"""
+    FHIRExample(version, resourceType, id)
+
+This returns a `DataKnot` for an example of a resource type provided
+in the FHIR specification.
+"""
+function FHIRExample(version::Symbol, resourceType, id)
+    @assert version == :R4
+    if length(example_registry) == 0
+       load_example_registry()
+    end
+    return example_registry[(Symbol(resourceType), Symbol(id))]
+end

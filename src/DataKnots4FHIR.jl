@@ -4,8 +4,7 @@ using DataKnots
 
 export
     FHIRProfile,
-    FHIRExample,
-    FHIRSpecificationInventory
+    FHIRExample
 
 include("profile.jl")
 	
