@@ -25,7 +25,7 @@ IsOptVector = Is(Union{Vector{Any}, Missing})
 # Since profiles refer to each other, we will create all of them
 # in one fell swoop rather than doing it dynamically.
 
-resource_registry = Dict{Symbol, DataKnot}()
+profile_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
 primitive_registry = Dict{Symbol, Type}()
 
@@ -51,6 +51,7 @@ get_name(path::String) = replace(split(path, ".")[end], "[x]" => "")
 UnpackProfile =
   Record(
     It.id >> IsString,
+    :kind => Symbol.(It.kind >> IsString),
     :elements =>
        It.snapshot >> IsDict >>
        It.element >> IsVector >> IsDict >>
@@ -90,16 +91,17 @@ function make_field(ctx::Context, code::String, singular::Bool,
         return make_declaration(singular, mandatory, primitive_registry[code])
     end
 
-    if haskey(resource_registry, code)
+    if haskey(profile_registry, code)
         if code in ctx.seen || code in profiles_to_ignore
             # Don't process certain nested profiles; instead make them
             # available as dictionaries with the correct cardinality.
             return make_declaration(singular, mandatory, Dict{String, Any})
         end
 
-        profile = resource_registry[code]
+        profile = profile_registry[code]
         push!(ctx.seen, code)
-        Nested = build_profile(ctx, get(profile[It.id]), profile[It.elements])
+        Nested = build_profile(ctx, get(profile[It.id]),
+                     profile[It.elements], get(profile[It.kind]))
         @assert code == pop!(ctx.seen)
         return make_declaration(singular, mandatory, Dict) >> Nested
     end
@@ -156,9 +158,9 @@ FieldElements(ctx::Context, base::String) =
 # Essentially, our profile queries build records of fields that are
 # nested records or concrete types properly cast.
 function build_profile(ctx::Context, base::String, elements::DataKnot,
-                       top::Bool = false)
+                       kind::Symbol = :backbone)
     fields = DataKnots.AbstractQuery[]
-    if top
+    if kind == :resource
         # In the XML format, the resource type is the elementname; hence,
         # it is not listed in the profile definition. Regardless, it is
         # a required field for JSON based FHIR data, so we add it here.
@@ -178,24 +180,35 @@ end
 
 # We load all profiles in one fell swoop; note that primitive types
 # are tracked and handled in a different global `primitive_registry`.
-function load_resource_registry()
+function load_profile_registry()
     for item in load_json(".profile.json")
         handle = Symbol(item["id"])
         if item["kind"] == "resource"
-            @assert !haskey(resource_registry, handle)
-            resource_registry[handle] =
+            @assert !haskey(profile_registry, handle)
+            profile_registry[handle] =
                 convert(DataKnot, item)[UnpackProfile]
             continue
         end
-        @assert !haskey(primitive_registry, handle)
-        lookup = Dict{Symbol, DataType}(
-           :string => String,
-           :boolean => Bool,
-           :integer => Int,
-           :code => String,
-           :uri => String,
-           :text => String)
-        primitive_registry[handle] = get(lookup, handle, Any)
+        if item["kind"] == "complex-type"
+            @assert !haskey(profile_registry, handle)
+            profile_registry[handle] =
+                convert(DataKnot, item)[UnpackProfile]
+            continue
+        end
+        if item["kind"] == "primitive-type"
+            @assert !haskey(primitive_registry, handle)
+            lookup = Dict{Symbol, DataType}(
+               :string => String,
+               :boolean => Bool,
+               :integer => Int,
+               :code => String,
+               :uri => String,
+               :text => String)
+            primitive_registry[handle] = get(lookup, handle, Any)
+            continue
+        end
+        # skipping remaining types, which are logical
+        @assert item["kind"] == "logical"
     end
 end
 
@@ -236,9 +249,9 @@ end
 # each profile query can be run on its corresponding examples.
 function sanity_check(version::Symbol = :R4)
     @assert version == :R4
-    load_resource_registry()
+    load_profile_registry()
     load_example_registry()
-    for resource in keys(resource_registry)
+    for resource in keys(profile_registry)
         println(resource)
         Q = FHIRProfile(version, resource)
         for (rt, id) in keys(example_registry)
@@ -265,14 +278,17 @@ of the same profile.
 """
 function FHIRProfile(version::Symbol, profile)
     @assert version == :R4
-    if length(resource_registry) == 0
-        load_resource_registry()
+    if length(profile_registry) == 0
+        load_profile_registry()
     end
-    meta = resource_registry[Symbol(profile)]
+    meta = profile_registry[Symbol(profile)]
+    query = IsDict
+   #if :resource == get(meta[It.kind])
+   #     query >>= Filter((It.resourceType >> IsString) .== profile)
+   #end
     return IsDict >>
-           Filter((It.resourceType >> IsString) .== profile) >>
            build_profile(Context(), get(meta[It.id]),
-                         meta[It.elements], true) >>
+                         meta[It.elements], get(meta[It.kind])) >>
            Label(Symbol(profile))
 end
 
