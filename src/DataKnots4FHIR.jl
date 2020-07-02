@@ -183,13 +183,7 @@ end
 function load_profile_registry()
     for item in load_json(".profile.json")
         handle = Symbol(item["id"])
-        if item["kind"] == "resource"
-            @assert !haskey(profile_registry, handle)
-            profile_registry[handle] =
-                convert(DataKnot, item)[UnpackProfile]
-            continue
-        end
-        if item["kind"] == "complex-type"
+        if item["kind"] in ("resource", "complex-type")
             @assert !haskey(profile_registry, handle)
             profile_registry[handle] =
                 convert(DataKnot, item)[UnpackProfile]
@@ -281,12 +275,12 @@ function FHIRProfile(version::Symbol, profile)
     if length(profile_registry) == 0
         load_profile_registry()
     end
+    base = IsDict
     meta = profile_registry[Symbol(profile)]
-    query = IsDict
-   #if :resource == get(meta[It.kind])
-   #     query >>= Filter((It.resourceType >> IsString) .== profile)
-   #end
-    return IsDict >>
+    if :resource == get(meta[It.kind])
+         base >>= Filter((It.resourceType >> IsString) .== profile)
+    end
+    return base >>
            build_profile(Context(), get(meta[It.id]),
                          meta[It.elements], get(meta[It.kind])) >>
            Label(Symbol(profile))
