@@ -105,6 +105,7 @@ function make_field(ctx::Context, code::String, singular::Bool,
         @assert code == pop!(ctx.seen)
         return make_declaration(singular, mandatory, Dict) >> Nested
     end
+
     return make_declaration(singular, mandatory, Any)
 end
 
@@ -190,19 +191,26 @@ function load_profile_registry()
             continue
         end
         if item["kind"] == "primitive-type"
+            # This is used to create the proper type assertion, as
+            # loaded from JSON; the String type is the default.
             @assert !haskey(primitive_registry, handle)
             lookup = Dict{Symbol, DataType}(
-               :string => String,
-               :boolean => Bool,
-               :integer => Int,
-               :code => String,
-               :uri => String,
-               :text => String)
-            primitive_registry[handle] = get(lookup, handle, Any)
+               :boolean => Bool, :decimal => Float64, :integer => Int,
+               :positiveInt => Int, :unsignedInt => Int)
+            #TODO: handle time, date, datetime, instant
+            primitive_registry[handle] = get(lookup, handle, String)
             continue
         end
         # skipping remaining types, which are logical
         @assert item["kind"] == "logical"
+    end
+
+    # Support the use of FHIRPath URLs for datatype coding.
+    for (key, val) in ("Boolean" => Bool, "String" => String,
+                       "Integer" => Integer, "Decimal" => Float64)
+       # TODO: handle Date, DateTime, Time, Quantity
+       handle = string("http://hl7.org/fhirpath/System.", key)
+       primitive_registry[Symbol(handle)] = val
     end
 end
 
