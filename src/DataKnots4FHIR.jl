@@ -183,21 +183,20 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
     return Record(fields...)
 end
 
-function FHIRDateTime(value::String)::ZonedDateTime
-    if value[end] == 'Z'
-       value = value[1:end-1]
+function FHIRInstant(value::String)::ZonedDateTime
+    if contains(value, ".")
+        return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SS.ssszzz")
     end
-    if length(value) < 11
-        return ZonedDateTime(Date(value), tz"UTC")
+    return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SSzzz")
+end
+
+function FHIRDateTime(value::String)::Union{DateTime, ZonedDateTime}
+    if occursin("+", value) ||
+       occursin("Z", value) ||
+       occursin("-", value[11:end])
+        return FHIRInstant(value)
     end
-    if contains(value, "+") || contains(value[11:end], "-")
-        if contains(value, ".")
-            return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SS.ssszzz")
-        else
-            return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SSzzz")
-        end
-    end
-    return ZonedDateTime(DateTime(value), tz"UTC")
+    return DateTime(value)
 end
 
 # We load all profiles in one fell swoop; note that primitive types
@@ -220,7 +219,7 @@ function load_profile_registry()
                 :positiveInt => Int, :unsignedInt => Int)
             conversion = Dict{Symbol, DataKnots.AbstractQuery}(
                  :date => Date.(It), :time => Time.(It),
-                 :instant => FHIRDateTime.(It),
+                 :instant => FHIRInstant.(It),
                  :dateTime => FHIRDateTime.(It),
                  :base64Binary => base64decode.(It))
             primitive_registry[handle] = tuple(get(basetypes, handle, String),
