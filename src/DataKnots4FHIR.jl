@@ -1,8 +1,11 @@
 module DataKnots4FHIR
 
+using Base64
 using DataKnots
-using Pkg.Artifacts
+using Dates
 using JSON
+using Pkg.Artifacts
+using TimeZones
 
 export
     FHIRProfile,
@@ -27,7 +30,7 @@ IsOptVector = Is(Union{Vector{Any}, Missing})
 
 profile_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
-primitive_registry = Dict{Symbol, Type}()
+primitive_registry = Dict{Symbol, Tuple{Type, DataKnots.AbstractQuery}}()
 
 # As we recursively expand profiles, we need bookkeeping to ensure
 # that they are expanded only once. When a profile is encountered for
@@ -88,7 +91,8 @@ function make_field(ctx::Context, code::String, singular::Bool,
     if haskey(primitive_registry, code)
         # If it is a known primitive, find the associated native type
         # from the registry and cast the incoming value appropriately.
-        return make_declaration(singular, mandatory, primitive_registry[code])
+        (basetype, conversion) = primitive_registry[code]
+        return make_declaration(singular, mandatory, basetype) >> conversion
     end
 
     if haskey(profile_registry, code)
@@ -179,6 +183,23 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
     return Record(fields...)
 end
 
+function FHIRDateTime(value::String)::ZonedDateTime
+    if value[end] == 'Z'
+       value = value[1:end-1]
+    end
+    if length(value) < 11
+        return ZonedDateTime(Date(value), tz"UTC")
+    end
+    if contains(value, "+") || contains(value[11:end], "-")
+        if contains(value, ".")
+            return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SS.ssszzz")
+        else
+            return ZonedDateTime(value, "yyyy-mm-ddTHH:MM:SSzzz")
+        end
+    end
+    return ZonedDateTime(DateTime(value), tz"UTC")
+end
+
 # We load all profiles in one fell swoop; note that primitive types
 # are tracked and handled in a different global `primitive_registry`.
 function load_profile_registry()
@@ -194,11 +215,16 @@ function load_profile_registry()
             # This is used to create the proper type assertion, as
             # loaded from JSON; the String type is the default.
             @assert !haskey(primitive_registry, handle)
-            lookup = Dict{Symbol, DataType}(
-               :boolean => Bool, :decimal => Float64, :integer => Int,
-               :positiveInt => Int, :unsignedInt => Int)
-            #TODO: handle time, date, datetime, instant
-            primitive_registry[handle] = get(lookup, handle, String)
+            basetypes = Dict{Symbol, DataType}(
+                :boolean => Bool, :decimal => Float64, :integer => Int,
+                :positiveInt => Int, :unsignedInt => Int)
+            conversion = Dict{Symbol, DataKnots.AbstractQuery}(
+                 :date => Date.(It), :time => Time.(It),
+                 :instant => FHIRDateTime.(It),
+                 :dateTime => FHIRDateTime.(It),
+                 :base64Binary => base64decode.(It))
+            primitive_registry[handle] = tuple(get(basetypes, handle, String),
+                                               get(conversion, handle, It))
             continue
         end
         # skipping remaining types, which are logical
@@ -210,7 +236,7 @@ function load_profile_registry()
                        "Integer" => Integer, "Decimal" => Float64)
        # TODO: handle Date, DateTime, Time, Quantity
        handle = string("http://hl7.org/fhirpath/System.", key)
-       primitive_registry[Symbol(handle)] = val
+       primitive_registry[Symbol(handle)] = tuple(val, It)
     end
 end
 
