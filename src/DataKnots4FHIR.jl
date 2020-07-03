@@ -215,7 +215,7 @@ function load_profile_registry()
             # loaded from JSON; the String type is the default.
             @assert !haskey(primitive_registry, handle)
             basetypes = Dict{Symbol, DataType}(
-                :boolean => Bool, :decimal => Float64, :integer => Int,
+                :boolean => Bool, :decimal => Number, :integer => Int,
                 :positiveInt => Int, :unsignedInt => Int)
             conversion = Dict{Symbol, DataKnots.AbstractQuery}(
                  :date => Date.(It), :time => Time.(It),
@@ -232,7 +232,7 @@ function load_profile_registry()
 
     # Support the use of FHIRPath URLs for datatype coding.
     for (key, val) in ("Boolean" => Bool, "String" => String,
-                       "Integer" => Integer, "Decimal" => Float64)
+                       "Integer" => Integer, "Decimal" => Number)
        # TODO: handle Date, DateTime, Time, Quantity
        handle = string("http://hl7.org/fhirpath/System.", key)
        primitive_registry[Symbol(handle)] = tuple(val, It)
