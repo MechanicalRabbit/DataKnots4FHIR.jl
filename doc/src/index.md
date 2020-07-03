@@ -3,29 +3,30 @@
 This package is an application of DataKnots to Health Level 7 (HL7)
 Fast Healthcare Interoperability Resources (FHIR). The main activity
 of this package is to parse profile specifications and produce
-queries that convert JSON based FHIR resources into DataKnots.
+queries that convert JSON based FHIR resources into friendly DataKnots.
 
-Let's start with an example from the FHIR specification, an [example
-patient](https://www.hl7.org/fhir/R4/patient-example.json.html). In
-Julia, we can use the *artifact* system to find its file name.
+## Getting Started
+
+Let's start with an example FHIR resource encoded using JSON,
+[example patient](https://www.hl7.org/fhir/R4/patient-example.json.html).
+With Julia, we've packaged the R4 FHIR specification up as an *Artifact*, 
+so this example can be accessed via `artifact"fhir-r4"`. 
 
     using Pkg.Artifacts
 
     fname = joinpath(artifact"fhir-r4", "fhir-r4", "patient-example.json")
-    #-> .../fhir-r4/patient-example.json
+    #-> …/fhir-r4/patient-example.json"
 
-    open(fname) do file
-        read(file, String)
-    end
+    println(read(fname, String))
     #=>
     {
       "resourceType": "Patient",
       "id": "example",
     ⋮
       "name": [
-         {
-           "use": "official",
-           "family": "Chalmers",
+        {
+          "use": "official",
+          "family": "Chalmers",
     ⋮
     =#
 
@@ -36,6 +37,7 @@ query the data.
     using JSON
 
     jsondata = JSON.parsefile(fname)
+    display(jsondata)
     #=>
     Dict{String,Any} with 14 entries:
       "active"               => true
@@ -69,11 +71,13 @@ use DataKnots for this.
     2 │ Windsor  │
     =#
 
-The output of this is convenient, but the query has quite a bit of type
-information. This can be automated by converting the FHIR R4 ``Patient`
-[profile](https://www.hl7.org/fhir/r4/patient.html).
+The output of this is pretty, but the query has lots of type-casting
+detail, using `Is()` function. Using JSON-based FHIR data with Julia
+also requires details such as parsing dates and other conversions.
+These details can be automated by converting the FHIR R4 ``Patient`
+[profile](https://www.hl7.org/fhir/r4/patient.html) into a query.
 
-    Using DataKnots4FHIR
+    using DataKnots4FHIR
 
     Patient = FHIRProfile(:R4, "Patient");
 
@@ -85,9 +89,23 @@ information. This can be automated by converting the FHIR R4 ``Patient`
     2 │ Windsor  │
     =#
 
+To make it easy to describe various profiles in this tutorial, we
+have a helper function which finds the example, loads it as JSON,
+and converts it to a DataKnot for us. 
+
+    ex = FHIRExample(:R4, "Patient", "example")
+
+    ex[Patient >> It.name.family]
+    #=>
+      │ family   │
+    ──┼──────────┼
+    1 │ Chalmers │
+    2 │ Windsor  │
+    =#
+
 There is a macro version using a more succinct syntax.
 
-    @query knot $Patient.name.family
+    @query ex $Patient.name.family
     #=>
       │ family   │
     ──┼──────────┼
@@ -99,12 +117,10 @@ Once we have a DataKnot, we can do all sorts of query operations; for
 example, we can find the given names associated with the family
 name `"Windsor"`.
 
-    @query knot $Patient.name.filter(family=="Windsor").given
+    @query ex $Patient.name.filter(family=="Windsor").given
     #=>
       │ given │
     ──┼───────┼
     1 │ Peter │
     2 │ James │
     =#
-
-What's more interesting is when we query large collections...

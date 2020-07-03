@@ -196,7 +196,10 @@ function FHIRDateTime(value::String)::Union{DateTime, ZonedDateTime}
        occursin("-", value[11:end])
         return FHIRInstant(value)
     end
-    return DateTime(value)
+    if occursin("T", value)
+        return DateTime(value)
+    end
+    return DateTime(Date(value))
 end
 
 # We load all profiles in one fell swoop; note that primitive types
