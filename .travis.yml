@@ -14,6 +14,10 @@ julia:
 notifications:
   email: false
 
+cache:
+  directories:
+  - $HOME/.julia/artifacts
+
 env:
   global:
   - DOCUMENTER_DEBUG=true
