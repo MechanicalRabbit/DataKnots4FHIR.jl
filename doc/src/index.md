@@ -79,8 +79,8 @@ that by default, it's a single value holding that same dictionary.
     =#
 
 The `FHIRProfile` query constructor provides the needed schema by
-converting the FHIR resource definition from the HL7 specification. For
-example, let's build a query reflecting the the FHIR R4
+converting the FHIR resource definition from the HL7 specification.
+For example, let's build a query reflecting the the FHIR R4
 [Patient](https://www.hl7.org/fhir/r4/patient.html) profile. What the
 ``Patient`` query does is rather involved, so we'll skip that for now,
 using the semicolon to suppress printing its definition.
@@ -117,65 +117,118 @@ the ``"Windsor"`` family name.
     2 │ James │
     =#
 
-To see the structure of our data, we use ``show(as=:shape, knot)``.
-This shows the resource hierarchically. Here we can see each ``Patient``
-has a zero-or-more ``name`` records. Each ``name`` has at-most-one
-``family`` and zero-or-more `given` names.
+To make it easy to explore these profiles, we have a helper constructor,
+``FHIRExample``, which finds a specification example by its identifier,
+loads it as JSON, and converts it into a DataKnot for us. Hence, the
+following is the minimal code needed to get up-and-running.
 
-    show(as=:shape, @query resource $Patient)
+    using DataKnots
+    using DataKnots4FHIR
+
+    Patient = FHIRProfile(:R4, "Patient");
+    resource = FHIRExample(:R4, "Patient", "example");
+
+    @query resource $Patient
+    #=>
+    │ Patient                                                            …
+    │ resource… id       meta{id,… implicit… language  text{id,… containe…
+    ┼────────────────────────────────────────────────────────────────────…
+    │ Patient   example                                missing,…         …
+    =#
+
+What exactly does the ``Patient`` profile do?
+
+## Profile Queries
+
+Directly querying a JSON encoded FHIR resource is challenging. Since
+JSON is schemaless, we don't know in advance if a given data element is
+a scalar value represented as a ``String`` or ``Integer`, or a nested
+structure represented as a ``Dict``, or some other kind of object. We
+can use DataKnot's ``show(as=:shape, *knot*)`` function to look at the
+structure of a dataknot.
+
+    show(as=:shape, resource)
     #=>
     1-element DataKnot:
-      Patient                   0:1
-      ├╴resourceType            1:1 × String
-      ├╴id                      0:1 × String
-    ⋮
-      ├╴active                  0:1 × Bool
-      ├╴name                    0:N
-      │ ├╴id                    0:1 × String
-    ⋮
-      │ ├╴family                0:1 × String
-      │ ├╴given                 0:N × String
-    ⋮
+      #  Dict{String,Any}
     =#
 
-There are a wealth of query operators available in DataKnots. More
-[documentation](https://rbt-lang.github.io/DataKnots.jl/stable/) for
-DataKnots is available.
+DataKnots lets us query dictionaries by key. Hence, we could return the
+``resourceType`` of this FHIR resource.
 
-## Challenges of JSON Resources
-
-Using FHIR resources represented with JSON, without a corresponding
-profile definition, is somewhat challenging. Since JSON is schemaless,
-there is no way to know before inspecting the resource object if a given
-data element is a scalar value represented as a ``String`` or
-``Integer`, or a nested structure represented as a ``Dict``.
-
-To make it easy to interrogate FHIR specification examples using their
-respective profiles, we have a helper function helper function which
-finds a specification example, loads it as JSON, and converts it to a
-DataKnot for us.
-
-    resource = FHIRExample(:R4, "Patient", "example")
+    @query resource resourceType
     #=>
+    │ resourceType │
+    ┼──────────────┼
+    │ Patient      │
+    =#
+
+However, things get complex when we try to return the list of ``name``
+elements associated with the resource. Suppose we want to return a list
+of family names, one might try to write ``name.family``.
+
+    @query resource name.family
+    #=>
+    ERROR: cannot find "family" at
+    (1:1) × Any
+    =#
+
+DataKnots cannot determine the output type of ``@query resource name``,
+and such it's listed as a singular value ``Any``.
+
+    show(as=:shape, @query resource name)
+    #=>
+    1-element DataKnot:
+      name  1:1 × Any
+    =#
+
+From inspection, we can see that the output is actually a vector of
+dictionaries.
+
+    @query resource name
+    #=>
+    │ name                                                               …
     ┼────────────────────────────────────────────────────────────────────…
-    │ Dict{String,Any}(\"active\"=>true,\"managingOrganization\"=>Dict{St…
+    │ Any[Dict{String,Any}(\"family\"=>\"Chalmers\",\"given\"=>Any[\"Pete…
     =#
 
+We could let DataKnots know that `name` is a vector of dictionaries
+using the ``Is`` combinator as follows.
 
-Hence, to check of the resource is a ``"Patient"``, we'd write
-
-    resource[Is(Dict) >> It.resourceType >> Is(String) .== "Patient"]
+    @query resource name.is(Vector).is(Dict)
     #=>
-    ┼──────┼
-    │ true │
+      │ name                                                             …
+    ──┼──────────────────────────────────────────────────────────────────…
+    1 │ Dict{String,Any}(\"family\"=>\"Chalmers\",\"given\"=>Any[\"Peter\…
+    2 │ Dict{String,Any}(\"given\"=>Any[\"Jim\"],\"use\"=>\"usual\")     …
+    3 │ Dict{String,Any}(\"family\"=>\"Windsor\",\"given\"=>Any[\"Peter\"…
     =#
 
-Further, if the value is plural, there will be an intermediate
-``Vector``. Moreover, missing field are simply omitted which make it
-hard to raise an exception if there is a query typo.
+Then, we could return the list of ``family`` names; except this has its
+own problem. The second entry provides a nickname, and the family name
+is optional, shown here as missing, rather than being omitted.
 
-    resource[Is(Dict) >> It.name >> Is(Vector) >> Is(Dict) >>
-                         It.family >> Is(Union{String,Missing})]
+    @query resource name.is(Vector).is(Dict).family
+    #=>
+      │ family   │
+    ──┼──────────┼
+    1 │ Chalmers │
+    2 │ missing  │
+    3 │ Windsor  │
+    =#
+
+    show(as=:shape, @query resource name.is(Vector).is(Dict).family)
+    #=>
+    3-element DataKnot:
+      family  0:N × Any
+    =#
+
+This can be addressed by specifying the datatype of ``family`` is
+``Union{String, Missing}``. In this case, DataKnots knows that the
+``missing`` value should be omitted in the query result.
+
+    @query resource name.is(Vector).is(Dict).family.
+                         is(Union{String, Missing})
     #=>
       │ family   │
     ──┼──────────┼
@@ -183,20 +236,81 @@ hard to raise an exception if there is a query typo.
     2 │ Windsor  │
     =#
 
-To make it easy to interrogate FHIR specification examples using their
-respective profiles, we have a helper function
-helper function which finds the example, loads it as JSON, and converts
-it to a DataKnot for us.
-
-    resource = FHIRExample(:R4, "Patient", "example")
-
-This magic is done by the ``Patient`` object.
+Providing this detail is what the ``Patient`` profile query does.
 
     Patient = FHIRProfile(:R4, "Patient")
+    @query resource $Patient.name.family
     #=>
-    Is(Dict{String,Any}) >>
-    Filter(It.resourceType >> Is(String) .== "Patient") >>
-    Record(
-        Get(:resourceType) >> Is(String),
+      │ family   │
+    ──┼──────────┼
+    1 │ Chalmers │
+    2 │ Windsor  │
+    =#
+
+This typing information beings with it another benefit. By default
+operations on a dictionary return ``missing`` if a key is omitted.
+Hence, if you have a typo, such as, ``resoursType`` instead of
+``resourceType``, you'll get a ``missing`` value rather than an error.
+
+    @query resource resoursType
+    #=>
+    │ resoursType │
+    ┼─────────────┼
+    │ missing     │
+    =#
+
+By applying the the ``Patient`` query, typos like this are errors.
+
+    @query resource $Patient.resoursType
+    #=>
+    ERROR: cannot find "resoursType" at
+    (0:1) × (resourceType = (1:1) × String, …
+    =#
+
+Moreover, this ``Patient`` profile can be used for introspection.
+
+    show(as=:shape, @query resource $Patient.name)
+    #=>
+    3-element DataKnot:
+      name           0:N
+      ├╴id           0:1 × String
+      ├╴extension    0:N × Dict{String,Any}
+      ├╴use          0:1 × String
+      ├╴text         0:1 × String
+      ├╴family       0:1 × String
+      ├╴given        0:N × String
     ⋮
     =#
+
+The ``Patient`` profile includes all ``BackboneElement``s from the
+specification as well as the 1st level of nested resources. One field
+type that isn't expanded directly are extentions, since they are quite
+big and repetitive.
+
+## Expanding Extensions
+
+Sometimes access to extensions is needed. The `"newborn"`` specification
+example has an example of an extension.
+
+    newborn = FHIRExample(:R4, "Patient", "newborn")
+
+    @query newborn $Patient.extension
+    #=>
+      │ extension                                                      …
+    ──┼────────────────────────────────────────────────────────────────…
+    1 │ Dict{String,Any}(\"valueString\"=>\"Everywoman\",\"url\"=>\"htt…
+    =#
+
+To work with the extension, we could use the ``Extension`` profile.
+
+    Extension = FHIRProfile(:R4, "Extension")
+
+    @query newborn $Patient.extension.$Extension.valueString
+    #=>
+      │ valueString │
+    ──┼─────────────┼
+    1 │ Everywoman  │
+    =#
+
+Extensions are also found on almost any value type. More on this later...
+
