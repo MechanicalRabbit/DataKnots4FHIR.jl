@@ -9,7 +9,8 @@ using TimeZones
 
 export
     FHIRProfile,
-    FHIRExample
+    FHIRExample,
+    FHIRField
 
 # As a profile query is generated, it consists of type assertions;
 # since some of those can be complex, we'll define them here.
@@ -24,6 +25,7 @@ IsOptBool   = Is(Union{Bool, Missing})
 IsOptDict   = Is(Union{Dict{String, Any}, Missing})
 IsOptString = Is(Union{String, Missing})
 IsOptVector = Is(Union{Vector{Any}, Missing})
+AsVector    = coalesce.(It, Ref([])) >> IsVector
 
 # Since profiles refer to each other, we will create all of them
 # in one fell swoop rather than doing it dynamically.
@@ -129,7 +131,7 @@ function make_declaration(singular::Bool, mandatory::Bool,
     if singular
         return Is(Union{Missing, basetype}) >> Is0to1
     end
-    return coalesce.(It, Ref([])) >> IsVector >> Is(basetype) >> Is0toN
+    return AsVector >> Is(basetype) >> Is0toN
 end
 
 # Some FHIR fields are variants. When they are converted into a label,
@@ -180,6 +182,7 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         push!(fields, Get(Symbol(row[:name])) >> Declaration >>
                         Nested >> Label(Symbol(row[:name])))
     end
+    push!(fields, It >> Label(:_))
     return Record(fields...)
 end
 
@@ -329,5 +332,29 @@ function FHIRExample(version::Symbol, profile, id)
     end
     return example_registry[(Symbol(profile), Symbol(id))]
 end
+
+"""
+    FHIRField(version, fieldName)
+
+This function returns glue to access field properties, including `id`
+and `extension`. Field values should be accessed though individual, type
+specific accessors. The `fieldName` argument should always start with an
+underscore, matching the JSON encoding style.
+"""
+function FHIRField(version::Symbol, fieldName::String)
+    @assert startswith(fieldName, "_")
+    fieldName = Symbol(fieldName)
+    Extension = FHIRProfile(version, :Extension)
+    return Record(
+       :id    => It >> Get(:_) >> Get(fieldName) >>
+                 IsOptDict >> Get(:id) >> IsOptString,
+       :extension => It >> Get(:_) >> Get(fieldName) >>
+                 IsOptDict >> It.extension >>
+                 coalesce.(It, Ref([])) >> Is(Vector) >> Extension
+    ) >> Label(fieldName)
+end
+
+FHIRField(version::Symbol, fieldName::Symbol) =
+    FHIRField(version, String(fieldName))
 	
 end

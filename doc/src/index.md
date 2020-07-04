@@ -282,17 +282,15 @@ Moreover, this ``Patient`` profile can be used for introspection.
     ⋮
     =#
 
-The ``Patient`` profile includes all ``BackboneElement``s from the
-specification as well as the 1st level of nested resources. One field
-type that isn't expanded directly are extentions, since they are quite
-big and repetitive.
+## Exceptional Cases
 
-## Expanding Extensions
-
+These generated profiles are not perfect. They are quite large and the
+FHIR schema has cycles. Therefore, these profiles stop expanding once an
+element has been seen before. Moreover, extensions are not expanded.
 Sometimes access to extensions is needed. The `"newborn"`` specification
 example has an example of an extension.
 
-    newborn = FHIRExample(:R4, "Patient", "newborn")
+    newborn = FHIRExample(:R4, "Patient", "newborn");
 
     @query newborn $Patient.extension
     #=>
@@ -303,14 +301,83 @@ example has an example of an extension.
 
 To work with the extension, we could use the ``Extension`` profile.
 
-    Extension = FHIRProfile(:R4, "Extension")
+    Extension = FHIRProfile(:R4, "Extension");
 
-    @query newborn $Patient.extension.$Extension.valueString
+    @query newborn begin
+        $Patient.extension.$Extension.
+         filter(endswith(url, "patient-mothersMaidenName")).
+         valueString
+    end
     #=>
       │ valueString │
     ──┼─────────────┼
     1 │ Everywoman  │
     =#
 
-Extensions are also found on almost any value type. More on this later...
+It's often handy to convert these into a query, so they can be reused.
+We do this below using DataKnots' Julia syntax. We'll check for equality
+on the entire URL and additionally assert there is at most one result.
 
+    MothersMaidenName = Is0to1(
+        It.extension >> Extension >>
+        Filter(It.url .== string("http://hl7.org/fhir/StructureDefinition/",
+                                 "patient-mothersMaidenName")) >>
+        It.valueString) >> Label(:mothersMaidenName);
+
+    @query newborn $Patient.$MothersMaidenName
+    #=>
+    │ mothersMaidenName │
+    ┼───────────────────┼
+    │ Everywoman        │
+    =#
+
+Sometimes scalar field values, such as `birthDate` have an extension; we
+do not represent these either. To permit access, at every level of the
+hierarchy, we provide a special underscore attribute that gives access
+to the underlying JSON source for that component.
+
+    @query resource $Patient._
+    #=>
+    │ _                                                                  …
+    ┼────────────────────────────────────────────────────────────────────…
+    │ Dict{String,Any}(\"active\"=>true,\"managingOrganization\"=>Dict{St…
+    =#
+
+From there, one could access the extension for `birthDate`.
+
+    @query resource $Patient._._birthDate
+    #=>
+    │ _birthDate                                                         …
+    ┼────────────────────────────────────────────────────────────────────…
+    │ Dict{String,Any}(\"extension\"=>Any[Dict{String,Any}(\"valueDateTim…
+    =#
+
+However, using the underlying ``Dict`` is complex. In particular, one
+must handle not only providing type information as described earlier,
+but also, convert missing values into empty lists using ``coalesce``.
+There is a helper function that does this for you.
+
+    BirthInfo = FHIRField(:R4, "_birthDate");
+
+    @query resource $Patient.$BirthInfo
+    #=>
+    │ _birthDate                                                         …
+    │ id  extension{id,extension,url,valueBase64Binary,valueBoolean,value…
+    ┼────────────────────────────────────────────────────────────────────…
+    │     missing, [], http://hl7.org/fhir/StructureDefinition/patient-bi…
+    =#
+
+Using this, one could define another custom combinator.
+
+    BirthTime = Is0to1(
+        FHIRField(:R4, "_birthDate") >> It.extension >>
+        Filter(It.url .== string("http://hl7.org/fhir/StructureDefinition/",
+                                 "patient-birthTime")) >>
+        It.valueDateTime) >> Label(:birthTime);
+
+    @query newborn $Patient.$BirthTime
+    #=>
+    │ birthTime                 │
+    ┼───────────────────────────┼
+    │ 2017-05-09T17:11:00+01:00 │
+    =#
