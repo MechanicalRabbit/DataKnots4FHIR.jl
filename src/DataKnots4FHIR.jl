@@ -205,7 +205,12 @@ end
 # We load all profiles in one fell swoop; note that primitive types
 # are tracked and handled in a different global `primitive_registry`.
 function load_profile_registry()
-    for item in load_json(".profile.json")
+
+    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
+        if !endswith(fname, ".profile.canonical.json")
+            continue
+        end
+        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
         handle = Symbol(item["id"])
         if item["kind"] in ("resource", "complex-type")
             @assert !haskey(profile_registry, handle)
@@ -244,8 +249,12 @@ end
 
 function load_example_registry()
     conflicts = Set{Tuple{Symbol, Symbol}}()
-    for item in load_json("-example.json")
-        if haskey(item, "id")
+    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
+        if endswith(fname, ".canonical.json") || !contains(fname, "-example")
+            continue
+        end
+        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+        if haskey(item, "id") && haskey(item, "resourceType")
             handle = (Symbol(item["resourceType"]), Symbol(item["id"]))
             if haskey(example_registry, handle)
                 push!(conflicts, handle)
@@ -258,21 +267,6 @@ function load_example_registry()
     for item in conflicts
         pop!(example_registry, item)
     end
-end
-
-# Uses the "fhir-r4" package artifact to load a set of JSON files
-# representing profiles or examples from the FHIR specification.
-function load_json(postfix)
-    items = Dict{String, Any}[]
-    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
-        if !endswith(fname, postfix)
-            continue
-        end
-        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
-        item["handle"] = Symbol(lowercase(chop(fname, tail=length(postfix))))
-        push!(items, item)
-    end
-    return items
 end
 
 # Loop though the profiles and corresponding examples to see that

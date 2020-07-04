@@ -192,7 +192,7 @@ it to a DataKnot for us.
 
 This magic is done by the ``Patient`` object.
 
-    Patient = FHIRProfile(:R4, "Patient");
+    Patient = FHIRProfile(:R4, "Patient")
     #=>
     Is(Dict{String,Any}) >>
     Filter(It.resourceType >> Is(String) .== "Patient") >>
