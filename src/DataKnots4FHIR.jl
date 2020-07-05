@@ -70,6 +70,7 @@ UnpackProfile =
          :mandatory => ((It.min >> IsInt) .!== 0) .&
                         (.! contains.(It.path, "[x]")),
          :singular => ((It.max >> IsString) .== "1"),
+         :contentReference => It.contentReference >> IsOptString,
          :type =>
            It.type >> IsOptVector >>
            IsVector >> IsDict >>
@@ -162,7 +163,19 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         mandatory = row[:mandatory]
         is_variant = length(row[:type]) > 1
         if length(row[:type]) < 1
-            # TODO: these cases are some sort of linking...
+            references = row[:contentReference][2:end]
+            Declaration = make_declaration(singular, mandatory, StringDict)
+            if Symbol(references) in ctx.seen
+                push!(fields, Get(Symbol(name)) >> Declaration >>
+                                 Label(Symbol(name)))
+                continue
+            end
+            push!(ctx.seen, Symbol(references))
+            Nested = build_profile(ctx, references, elements)
+            @assert Symbol(references) == pop!(ctx.seen)
+            Declaration = make_declaration(singular, mandatory, StringDict)
+            push!(fields, Get(Symbol(name)) >> Declaration >> Nested >>
+                          Label(Symbol(name)))
             continue
         end
         if "BackboneElement" == row[:type][1][:code]
