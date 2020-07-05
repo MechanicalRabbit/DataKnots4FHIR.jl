@@ -338,6 +338,7 @@ function FHIRProfile(version::Symbol, profile)
     end
     meta = resource_registry[ident]
     return profile_registry[ident] =
+        IsDict >>
         Filter((It.resourceType >> IsString) .== get(meta[It.id])) >>
         build_profile(Context(), get(meta[It.id]),
                       meta[It.elements], :resource) >>

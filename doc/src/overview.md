@@ -1,11 +1,11 @@
-# DataKnots4FHIR.jl
+## DataKnots4FHIR.jl
 
 This package is an application of the DataKnots processing system to
 Health Level 7 (HL7) Fast Healthcare Interoperability Resources (FHIR).
 This project creates schema-driven DataKnot queries for each FHIR
 profile, giving convenient access to JSON encoded FHI.
 
-## Quick Start
+### Quick Start
 
 Let's start with an example FHIR resource encoded using JSON, [example
 patient](https://www.hl7.org/fhir/R4/patient-example.json.html). This
@@ -138,7 +138,7 @@ following is the minimal code needed to get up-and-running.
 
 What exactly does the ``Patient`` profile do?
 
-## Profile Queries
+### Profile Queries
 
 Directly querying a JSON encoded FHIR resource is challenging. Since
 JSON is schemaless, we don't know in advance if a given data element is
@@ -282,7 +282,7 @@ Moreover, this ``Patient`` profile can be used for introspection.
     ⋮
     =#
 
-## Exceptional Cases
+### Exceptional Cases
 
 These generated profiles are not perfect. They are quite large and the
 FHIR schema has cycles. Therefore, these profiles stop expanding once an

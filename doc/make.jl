@@ -16,7 +16,8 @@ makedocs(
     sitename = "DataKnots4FHIR.jl",
     format = Documenter.HTML(prettyurls=(get(ENV, "CI", nothing) == "true")),
     pages = [
-        "Home" => "index.md",
+        "Overview" => "overview.md",
+        "Synthea" => "synthea.md",
     ],
     modules = [DataKnots4FHIR])
 
