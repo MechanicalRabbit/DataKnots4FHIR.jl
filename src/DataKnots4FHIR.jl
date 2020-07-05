@@ -139,6 +139,9 @@ end
 # Some FHIR fields are variants. When they are converted into a label,
 # the underlying datatype is appended, after it's first letter is made
 # uppercase; do this as a Julia scalar function rather than in a query.
+make_label(name::String, is_variant::Bool, code::String) =
+  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
+
 # Essentially, our profile queries build records of fields that are
 # nested records or concrete types properly cast.
 function build_profile(ctx::Context, base::String, elements::DataKnot,
@@ -171,10 +174,9 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         end
         for alt in row[:type]
             typecode = alt[:code]
-            postfix = "$(uppercase(typecode)[1])$(typecode[2:end])"
-            qname = Symbol(is_variant ? "$(name)$(postfix)" : name)
+            label = make_label(name, is_variant, typecode)
             Query = make_field(ctx, typecode, singular, mandatory)
-            push!(fields, Get(qname) >> Query >> Label(qname))
+            push!(fields, Get(label) >> Query >> Label(label))
         end
     end
     push!(fields, It >> Label(:_))
