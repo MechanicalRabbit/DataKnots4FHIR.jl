@@ -139,31 +139,6 @@ end
 # Some FHIR fields are variants. When they are converted into a label,
 # the underlying datatype is appended, after it's first letter is made
 # uppercase; do this as a Julia scalar function rather than in a query.
-make_label(name::String, is_variant::Bool, code::String) =
-  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
-
-# The elements of a profile are hierarchical, but are recorded in a
-# flat structure using dotted notation. The `BackboneElement` items
-# signify a nested structure, which we build recursively.
-BackboneElements(ctx::Context, base::String) =
-  Filter(It.base .== base) >>
-  Filter(It.type >> (It.code .== "BackboneElement"))
-
-# The remaining elements in a profile can be recursive another way,
-# they may be nested resources. This case is handled by `make_field`.
-FieldElements(ctx::Context, base::String) =
-  Filter(It.base .== base) >>
-  Filter("BackboneElement" .∉  It.type.code) >>
-  Given(
-    :is_variant => Count(It.type) .> 1,
-    It.name, It.singular, It.mandatory,
-    It.type >>
-      Record(
-        :label => make_label.(It.name, It.is_variant, It.code),
-        :query => make_field.(Ref(ctx), It.code, It.singular, It.mandatory)
-      )
-  )
-
 # Essentially, our profile queries build records of fields that are
 # nested records or concrete types properly cast.
 function build_profile(ctx::Context, base::String, elements::DataKnot,
@@ -175,14 +150,32 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         # a required field for JSON based FHIR data, so we add it here.
         push!(fields, Get(:resourceType) >> IsString)
     end
-    for row in get(elements[FieldElements(ctx, base)])
-        push!(fields, Get(row[:label]) >> row[:query] >> Label(row[:label]))
-    end
-    for row in get(elements[BackboneElements(ctx, base)])
-        Nested = build_profile(ctx, "$(base).$(row[:name])", elements)
-        Declaration = make_declaration(row[:singular], row[:mandatory], Dict)
-        push!(fields, Get(Symbol(row[:name])) >> Declaration >>
-                        Nested >> Label(Symbol(row[:name])))
+    for row in get(elements)
+        if row[:base] != base
+            continue
+        end
+        name = row[:name]
+        singular = row[:singular]
+        mandatory = row[:mandatory]
+        is_variant = length(row[:type]) > 1
+        if length(row[:type]) < 1
+            # TODO: these cases are some sort of linking...
+            continue
+        end
+        if "BackboneElement" == row[:type][1][:code]
+            Nested = build_profile(ctx, "$(base).$(name)", elements)
+            Declaration = make_declaration(singular, mandatory, StringDict)
+            push!(fields, Get(Symbol(name)) >> Declaration >> Nested >>
+                          Label(Symbol(name)))
+            continue
+        end
+        for alt in row[:type]
+            typecode = alt[:code]
+            postfix = "$(uppercase(typecode)[1])$(typecode[2:end])"
+            qname = Symbol(is_variant ? "$(name)$(postfix)" : name)
+            Query = make_field(ctx, typecode, singular, mandatory)
+            push!(fields, Get(qname) >> Query >> Label(qname))
+        end
     end
     push!(fields, It >> Label(:_))
     return Record(fields...)
