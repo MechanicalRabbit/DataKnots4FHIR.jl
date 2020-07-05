@@ -34,6 +34,7 @@ AsVector    = coalesce.(It, Ref([])) >> IsVector
 profile_registry = Dict{Symbol, DataKnots.AbstractQuery}()
 complex_registry = Dict{Symbol, DataKnot}()
 example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
+resource_registry = Dict{Symbol, DataKnot}()
 primitive_registry = Dict{Symbol, Tuple{Type, DataKnots.AbstractQuery}}()
 
 # As we recursively expand profiles, we need bookkeeping to ensure
@@ -206,10 +207,10 @@ function FHIRDateTime(value::String)::Union{DateTime, ZonedDateTime}
     return DateTime(Date(value))
 end
 
-# We load all profiles in one fell swoop; note that primitive types
-# are tracked and handled in a different global `primitive_registry`.
-function load_profile_registry()
-    resource_list = Vector{DataKnot}()
+function load_resource_registry()
+    if length(resource_registry) != 0
+        return
+    end
 
     for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
         if !endswith(fname, ".profile.canonical.json")
@@ -218,7 +219,8 @@ function load_profile_registry()
         item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
         handle = Symbol(item["id"])
         if item["kind"] == "resource"
-            push!(resource_list,  convert(DataKnot, item)[UnpackProfile])
+            knot = convert(DataKnot, item)[UnpackProfile]
+            resource_registry[handle] = knot
             continue
         end
         if item["kind"] == "complex-type"
@@ -237,8 +239,9 @@ function load_profile_registry()
                  :instant => FHIRInstant.(It),
                  :dateTime => FHIRDateTime.(It),
                  :base64Binary => base64decode.(It))
-            primitive_registry[handle] = tuple(get(basetypes, handle, String),
-                                               get(conversion, handle, It))
+            primitive_registry[handle] =
+                tuple(get(basetypes, handle, String),
+                      get(conversion, handle, It))
             continue
         end
     end
@@ -251,28 +254,13 @@ function load_profile_registry()
        primitive_registry[Symbol(handle)] = tuple(val, It)
     end
 
-    # construct the profile queries
-    for meta in resource_list
-        ident = Symbol(get(meta[It.id]))
-        profile_registry[ident] =
-          IsDict >>
-          Filter((It.resourceType >> IsString) .== get(meta[It.id])) >>
-          build_profile(Context(), get(meta[It.id]),
-                        meta[It.elements], :resource) >>
-          Label(ident)
-    end
-
-    # construct queries for unexpanded complex-types
-    for (ident, meta) in complex_registry
-        profile_registry[ident] =
-          IsDict >>
-          build_profile(Context(), get(meta[It.id]),
-                        meta[It.elements], Symbol("complex-type")) >>
-          Label(ident)
-    end
 end
 
 function load_example_registry()
+    if length(example_registry) != 0
+        return
+    end
+
     conflicts = Set{Tuple{Symbol, Symbol}}()
     for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
         if endswith(fname, ".canonical.json") || !contains(fname, "-example")
@@ -298,9 +286,9 @@ end
 # each profile query can be run on its corresponding examples.
 function sanity_check(version::Symbol = :R4)
     @assert version == :R4
-    load_profile_registry()
+    load_resource_registry()
     load_example_registry()
-    for resource in keys(profile_registry)
+    for resource in keys(resource_registry)
         println(resource)
         Q = FHIRProfile(version, resource)
         for (rt, id) in keys(example_registry)
@@ -327,10 +315,25 @@ of the same profile.
 """
 function FHIRProfile(version::Symbol, profile)
     @assert version == :R4
-    if length(profile_registry) == 0
-        load_profile_registry()
+    ident = Symbol(profile)
+    if haskey(profile_registry, ident)
+        return profile_registry[ident]
     end
-    return profile_registry[Symbol(profile)]
+    load_resource_registry()
+    if haskey(complex_registry, ident)
+        meta = complex_registry[ident]
+        return profile_registry[ident] =
+            IsDict >>
+            build_profile(Context(), get(meta[It.id]),
+                          meta[It.elements], Symbol("complex-type")) >>
+            Label(ident)
+    end
+    meta = resource_registry[ident]
+    return profile_registry[ident] =
+        Filter((It.resourceType >> IsString) .== get(meta[It.id])) >>
+        build_profile(Context(), get(meta[It.id]),
+                      meta[It.elements], :resource) >>
+        Label(ident)
 end
 
 """
@@ -341,9 +344,7 @@ in the FHIR specification.
 """
 function FHIRExample(version::Symbol, profile, id)
     @assert version == :R4
-    if length(example_registry) == 0
-       load_example_registry()
-    end
+    load_example_registry()
     return example_registry[(Symbol(profile), Symbol(id))]
 end
 
