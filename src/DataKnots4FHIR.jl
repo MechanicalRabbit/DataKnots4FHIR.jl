@@ -15,14 +15,15 @@ export
 # As a profile query is generated, it consists of type assertions;
 # since some of those can be complex, we'll define them here.
 
+StringDict  = Dict{String, Any}
 IsInt       = Is(Int)
 IsBool      = Is(Bool)
-IsDict      = Is(Dict{String, Any})
+IsDict      = Is(StringDict)
 IsString    = Is(String)
 IsVector    = Is(Vector{Any})
 IsOptInt    = Is(Union{Int, Missing})
 IsOptBool   = Is(Union{Bool, Missing})
-IsOptDict   = Is(Union{Dict{String, Any}, Missing})
+IsOptDict   = Is(Union{StringDict, Missing})
 IsOptString = Is(Union{String, Missing})
 IsOptVector = Is(Union{Vector{Any}, Missing})
 AsVector    = coalesce.(It, Ref([])) >> IsVector
@@ -101,15 +102,17 @@ function make_field(ctx::Context, code::String, singular::Bool,
         if code in ctx.seen || code in profiles_to_ignore
             # Don't process certain nested profiles; instead make them
             # available as dictionaries with the correct cardinality.
-            return make_declaration(singular, mandatory, Dict{String, Any})
+            return make_declaration(singular, mandatory, StringDict)
         end
-
         profile = profile_registry[code]
+        if "resource" == profile["kind"]
+            return make_declaration(singular, mandatory, StringDict)
+        end
         push!(ctx.seen, code)
         Nested = build_profile(ctx, get(profile[It.id]),
                      profile[It.elements], get(profile[It.kind]))
         @assert code == pop!(ctx.seen)
-        return make_declaration(singular, mandatory, Dict) >> Nested
+        return make_declaration(singular, mandatory, StringDict) >> Nested
     end
 
     return make_declaration(singular, mandatory, Any)
