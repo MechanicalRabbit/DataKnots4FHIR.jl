@@ -1,0 +1,2 @@
+# For regression tests we'd like to stay at 72 cols
+LINES=11 COLUMNS=72 julia -L bin/load-synthea.jl

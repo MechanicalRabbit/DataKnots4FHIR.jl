@@ -9,4 +9,7 @@ fhir_r4 = artifact"fhir-r4"
 synthea = artifact"synthea-116"
 
 args = !isempty(ARGS) ? ARGS : [relpath(joinpath(dirname(abspath(PROGRAM_FILE)), "../doc/src"))]
-exit(!runtests(args))
+
+withenv("LINES" => 11, "COLUMNS" => 74) do
+    exit(!runtests(args))
+end
