@@ -381,3 +381,18 @@ Using this, one could define another custom combinator.
     ┼───────────────────────────┼
     │ 2017-05-09T17:11:00+01:00 │
     =#
+
+### DataType Handling
+
+As part of the casting, date and time values are converted.
+
+    using Dates
+
+    example = FHIRExample(:R4, "Patient", "example")
+
+    @query example $Patient.filter(birthDate<Date("1979-12-31")).birthDate
+    #=>
+    │ birthDate  │
+    ┼────────────┼
+    │ 1974-12-25 │
+    =#

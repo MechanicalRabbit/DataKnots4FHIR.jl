@@ -1,7 +1,8 @@
 ## Querying Synthea FHIR Bundles
 
 This package demonstrates how to query bundles of FHIR using DataKnots
-with a 116 person synthetic data set. Let's create a database.
+with a 116 person synthetic dataset. Note that the downloaded data
+includes two additional bundles, for providers and hospitals.
 
     using JSON
     using DataKnots
@@ -49,13 +50,14 @@ entry in them. Then, let's group patents and observations and see how
 many observations we have for each patient.
 
     Bundle =
+       It.bundle >>
        FHIRProfile(:R4, :Bundle) >>
        Filter(Exists(It.entry.resource >> Patient)) >>
        Record(
         :patient => It.entry.resource >> Patient >> Is0to1,
         :observation => It.entry.resource >> Observation )
 
-    @query db bundle.$Bundle{patient.id, count => count(observation)}
+    @query db $Bundle{patient.id, count => count(observation)}
     #=>
         │ Bundle                                      │
         │ id                                    count │
