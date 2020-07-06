@@ -65,12 +65,16 @@ would return family names listed for this patient resource.
     ["Chalmers", "Windsor"]
     =#
 
-To more easily query this resource, we use two steps. First, we have to
-convert this data into a ``DataKnot``. However, since JSON is
-schemaless, DataKnots can't easily work with it directly. Here we see
-that by default, it's a single value holding that same dictionary.
+
+To more easily query this resource, let's use DataKnots and an
+adapter to FHIR data sources.
 
     using DataKnots
+    using DataKnots4FHIR
+
+However, since JSON is schemaless, DataKnots can't easily work with it
+directly. If we convert this input to a DataKnot, we'll see it's not
+fully converted into something usable.
 
     resource = convert(DataKnot, JSON.parsefile(fname))
     #=>
@@ -79,13 +83,11 @@ that by default, it's a single value holding that same dictionary.
     =#
 
 The `FHIRProfile` query constructor provides the needed schema by
-converting the FHIR resource definition from the HL7 specification.
-For example, let's build a query reflecting the the FHIR R4
+converting the FHIR resource definition from the HL7 specification.  For
+example, let's build a query reflecting the the FHIR R4
 [Patient](https://www.hl7.org/fhir/r4/patient.html) profile. What the
 ``Patient`` query does is rather involved, so we'll skip that for now,
 using the semicolon to suppress printing its definition.
-
-    using DataKnots4FHIR
 
     Patient = FHIRProfile(:R4, "Patient");
 
@@ -416,4 +418,21 @@ To get an actual match, a `Date` has to be constructed.
     │ id      │
     ┼─────────┼
     │ example │
+    =#
+
+This could perhaps be addressed if we used the congruent operator.
+
+    ≅(a::T, b::T) where {T} = a == b
+    ≅(a, b) = ≅(promote(a, b)...)
+
+    @query example $Patient.filter(birthDate≅ Date("1974-12-25")).id
+    #=>
+    │ id      │
+    ┼─────────┼
+    │ example │
+    =#
+
+    @query example $Patient.filter(birthDate≅ "1974-12-25").id
+    #=>
+    ERROR: cannot apply ≅ to Tuple{Union{Missing, Date},String}
     =#

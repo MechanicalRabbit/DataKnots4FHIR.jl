@@ -1,12 +1,18 @@
 ## Querying Synthea FHIR Bundles
 
 This package demonstrates how to query bundles of FHIR using DataKnots
-with a 116 person synthetic dataset. Note that the downloaded data
-includes two additional bundles, for providers and hospitals.
+with a 116 person synthetic dataset. First we import the relevant 
+libraries we'll be using.
 
     using JSON
+    using Dates
     using DataKnots
+    using DataKnots4FHIR
     using Pkg.Artifacts
+
+Next let's build an in-memory database that holds our synthetic patient
+bundles. Note that the downloaded data includes two additional bundles,
+for providers and hospitals.
 
     datapath = joinpath(artifact"synthea-116", "synthea-116");
 
@@ -31,8 +37,6 @@ includes two additional bundles, for providers and hospitals.
 
 Then, we could define some FHIR profiles to work with it. For example,
 we could ask, "What are the total number of ``Patient`` resources?"
-
-    using DataKnots4FHIR
 
     Observation = FHIRProfile(:R4, :Observation)
     Bundle = FHIRProfile(:R4, :Bundle)
@@ -67,5 +71,3 @@ many observations we have for each patient.
       ⋮
     116 │ e43e35c8-4ee6-4ad6-a195-a92afaeda66b     49 │
     =#
-
-

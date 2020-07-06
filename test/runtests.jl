@@ -1,7 +1,6 @@
 #!/usr/bin/env julia
 
-using DataKnots
-using DataKnots4FHIR
+using Dates
 using NarrativeTest
 using Pkg.Artifacts
 
