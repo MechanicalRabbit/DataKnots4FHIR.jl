@@ -384,7 +384,8 @@ Using this, one could define another custom combinator.
 
 ### DataType Handling
 
-As part of the casting, date and time values are converted.
+As part of the casting, date and time values are converted. This makes
+it easy to do date comparison.
 
     using Dates
 
@@ -395,4 +396,24 @@ As part of the casting, date and time values are converted.
     │ birthDate  │
     ┼────────────┼
     │ 1974-12-25 │
+    =#
+
+However, since the underlying Julia implementation doesn't create an
+error if a string is compared to a date; therefore, you can have some
+rather unexpected behavior.
+
+    @query example $Patient.filter(birthDate=="1974-12-25").id
+    #=>
+    │ id │
+    ┼────┼
+    (empty)
+    =#
+
+To get an actual match, a `Date` has to be constructed.
+
+    @query example $Patient.filter(birthDate==Date("1974-12-25")).id
+    #=>
+    │ id      │
+    ┼─────────┼
+    │ example │
     =#
