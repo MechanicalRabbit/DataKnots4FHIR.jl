@@ -1,13 +1,20 @@
 [fhir-r4]
 git-tree-sha1 = "ed1dc2cc61898b165c38ecdfc8cb5f354747d2af"
 
-  [[fhir-r4.download]]
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/fhir-r4-2019-10-30.tar.gz"
+    [[fhir-r4.download]]
     sha256 = "9860f332ca828a1463c3d657f6f8b4ee43855d80f8fb95d0957d91e4994bd56b"
+    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/fhir-r4-2019-10-30.tar.gz"
+
+[fhir-stu3]
+git-tree-sha1 = "52c55258d528e0274165f2c3679be74e029eb674"
+
+    [[fhir-stu3.download]]
+    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/fhir-stu3-2019-10-24.tar.gz"
+    sha256 = "3101fdeac37cd1c50213a533ba25e701b0cdeae348d8da1b24a0482f4d18859f"
 
 [synthea-116]
 git-tree-sha1 = "715bd0352208aff4842d67ef32c2e5e355bfd559"
 
-  [[synthea-116.download]]
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/synthea-116-20200705.tar.gz"
+    [[synthea-116.download]]
     sha256 = "14534c9271d571cd2caf5934cb9d5f5eefb1113342472a817b827ede5fb28a78"
+    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/synthea-116-20200705.tar.gz"

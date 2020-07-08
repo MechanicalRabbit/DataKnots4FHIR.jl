@@ -363,10 +363,10 @@ There is a helper function that does this for you.
 
     @query resource $Patient.$BirthInfo
     #=>
-    │ _birthDate                                                         …
-    │ id  extension{id,extension,url,valueBase64Binary,valueBoolean,value…
-    ┼────────────────────────────────────────────────────────────────────…
-    │     missing, [], http://hl7.org/fhir/StructureDefinition/patient-bi…
+    │ _birthDate                                                          │
+    │ id  extension{id,extension,url,valueAddress{id,extension,use,type,t…│
+    ┼─────────────────────────────────────────────────────────────────────┼
+    │     missing, [], http://hl7.org/fhir/StructureDefinition/patient-bi…│
     =#
 
 Using this, one could define another custom combinator.

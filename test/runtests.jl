@@ -10,6 +10,6 @@ synthea = artifact"synthea-116"
 
 args = !isempty(ARGS) ? ARGS : [relpath(joinpath(dirname(abspath(PROGRAM_FILE)), "../doc/src"))]
 
-withenv("LINES" => 11, "COLUMNS" => 74) do
+withenv("LINES" => 11, "COLUMNS" => 72) do
     exit(!runtests(args))
 end
