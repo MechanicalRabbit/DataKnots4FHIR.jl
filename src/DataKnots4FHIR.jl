@@ -76,23 +76,13 @@ UnpackProfile =
        Record(
          :base => get_base.(It.path),
          :name => get_name.(It.path),
+         :is_variant => endswith.(It.path, "[x]"),
          :mandatory => ((It.min >> IsInt) .!== 0) .&
-                        (.! contains.(It.path, "[x]")),
+                        (.! endswith.(It.path, "[x]")),
          :singular => ((It.max >> IsString) .== "1"),
          :contentReference => It.contentReference >> IsOptString,
-         :type =>
-           It.type >> IsOptVector >>
-           IsVector >> IsDict >>
-           Record(
-             :code => It.code >> IsString,
-             :extension => It.extension >> IsOptVector >>
-               IsVector >> IsDict >>
-               Record(
-                 :valueUrl => It.valueUrl >> IsOptString,
-                 :url => It.url >> IsString,
-                 :valueBoolean => It.valueBoolean >> IsOptBool
-               )
-           )
+         :typecode => It.type >> IsOptVector >> IsVector >> IsDict >>
+                          It.code >> IsString >> Unique
         ) >> Drop(1) # initial slot refers to self
   )
 
@@ -170,8 +160,9 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         name = row[:name]
         singular = row[:singular]
         mandatory = row[:mandatory]
-        is_variant = length(row[:type]) > 1
-        if length(row[:type]) < 1
+        is_variant = length(row[:typecode]) > 1
+        @assert is_variant == row[:is_variant]
+        if length(row[:typecode]) < 1
             references = row[:contentReference][2:end]
             Declaration = make_declaration(singular, mandatory, StringDict)
             if Symbol(references) in ctx.seen
@@ -187,15 +178,14 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
                           Label(Symbol(name)))
             continue
         end
-        if "BackboneElement" == row[:type][1][:code]
+        if "BackboneElement" == row[:typecode][1]
             Nested = build_profile(ctx, "$(base).$(name)", elements)
             Declaration = make_declaration(singular, mandatory, StringDict)
             push!(fields, Get(Symbol(name)) >> Declaration >> Nested >>
                           Label(Symbol(name)))
             continue
         end
-        for alt in row[:type]
-            typecode = alt[:code]
+        for typecode in row[:typecode]
             label = make_label(name, is_variant, typecode)
             Query = make_field(ctx, typecode, singular, mandatory)
             push!(fields, Get(label) >> Query >> Label(label))
@@ -314,16 +304,16 @@ function sanity_check(standard::Symbol)
     load_examples(standard)
     registry = registries[standard]
     for resource in keys(registry.resource)
-        println(resource)
+        println(standard, " ", resource)
         Q = FHIRProfile(standard, resource)
         for (rt, id) in keys(registry.example)
             if rt == resource
-                println(resource, " ", id)
+                println(standard, " ", resource, " ", id)
                 ex = FHIRExample(standard, resource, id)
                 try
                     ex[Q]
                 catch e
-                    println(resource, " ", id, " ! " , e)
+                    println(standard, " ", resource, " ", id, " ! " , e)
                 end
             end
         end
