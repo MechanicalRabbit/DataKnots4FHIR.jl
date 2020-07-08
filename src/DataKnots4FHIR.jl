@@ -31,20 +31,29 @@ AsVector    = coalesce.(It, Ref([])) >> IsVector
 # Since profiles refer to each other, we will create all of them
 # in one fell swoop rather than doing it dynamically.
 
-profile_registry = Dict{Symbol, DataKnots.AbstractQuery}()
-complex_registry = Dict{Symbol, DataKnot}()
-example_registry = Dict{Tuple{Symbol, Symbol}, DataKnot}()
-resource_registry = Dict{Symbol, DataKnot}()
-primitive_registry = Dict{Symbol, Tuple{Type, DataKnots.AbstractQuery}}()
+struct Registry
+   standard::Symbol
+   profile::Dict{Symbol, DataKnots.AbstractQuery}
+   complex::Dict{Symbol, DataKnot}
+   example::Dict{Tuple{Symbol, Symbol}, DataKnot}
+   resource::Dict{Symbol, DataKnot}
+   primitive::Dict{Symbol, Tuple{Type, DataKnots.AbstractQuery}}
+   Registry(standard::Symbol) =
+     new(standard, Dict(), Dict(), Dict(), Dict(), Dict())
+end
+
+registries = Dict(:R4 => Registry(:R4), :STU3 => Registry(:STU3))
 
 # As we recursively expand profiles, we need bookkeeping to ensure
 # that they are expanded only once. When a profile is encountered for
 # a second time, it is unpacked only as a dictonary.
-mutable struct Context
+struct Context
+   registry::Registry
    seen::Vector{Symbol}
-end
 
-Context() = Context(Vector{Symbol}())
+   Context(standard::Symbol) = new(registries[standard],
+                                   Vector{Symbol}())
+end
 
 # Do not expand any `Extension` or `Resource` children, these can be
 # expressly cast into an appropriate type by the user as required.
@@ -94,20 +103,20 @@ function make_field(ctx::Context, code::String, singular::Bool,
                     mandatory::Bool)::DataKnots.AbstractQuery
     code = Symbol(code)
 
-    if haskey(primitive_registry, code)
+    if haskey(ctx.registry.primitive, code)
         # If it is a known primitive, find the associated native type
         # from the registry and cast the incoming value appropriately.
-        (basetype, conversion) = primitive_registry[code]
-        return make_declaration(singular, mandatory, basetype) >> conversion
+        (basetype, constandard) = ctx.registry.primitive[code]
+        return make_declaration(singular, mandatory, basetype) >> constandard
     end
 
-    if haskey(complex_registry, code)
+    if haskey(ctx.registry.complex, code)
         if code in ctx.seen || code in profiles_to_ignore
             # Don't process certain nested profiles; instead make them
             # available as dictionaries with the correct cardinality.
             return make_declaration(singular, mandatory, StringDict)
         end
-        profile = complex_registry[code]
+        profile = ctx.registry.complex[code]
         push!(ctx.seen, code)
         Nested = build_profile(ctx, get(profile[It.id]),
                      profile[It.elements], Symbol("complex-type"))
@@ -215,25 +224,28 @@ function FHIRDateTime(value::String)::Union{DateTime, ZonedDateTime}
     return DateTime(Date(value))
 end
 
-function load_resource_registry()
-    if length(resource_registry) != 0
-        return
+function load_registry(standard::Symbol)::Registry
+    registry = registries[standard]
+    if length(registry.resource) != 0
+        return registry
     end
 
-    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
+    prefix = "fhir-$(lowercase(string(standard)))"
+    folder = joinpath(@artifact_str(prefix), prefix)
+    for fname in readdir(folder)
         if !endswith(fname, ".profile.canonical.json")
             continue
         end
-        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+        item = JSON.parsefile(joinpath(folder, fname))
         handle = Symbol(item["id"])
         if item["kind"] == "resource"
             knot = convert(DataKnot, item)[UnpackProfile]
-            resource_registry[handle] = knot
+            registry.resource[handle] = knot
             continue
         end
         if item["kind"] == "complex-type"
             knot = convert(DataKnot, item)[UnpackProfile]
-            complex_registry[handle] = knot
+            registry.complex[handle] = knot
             continue
         end
         if item["kind"] == "primitive-type"
@@ -242,14 +254,14 @@ function load_resource_registry()
             basetypes = Dict{Symbol, DataType}(
                 :boolean => Bool, :decimal => Number, :integer => Int,
                 :positiveInt => Int, :unsignedInt => Int)
-            conversion = Dict{Symbol, DataKnots.AbstractQuery}(
+            constandard = Dict{Symbol, DataKnots.AbstractQuery}(
                  :date => Date.(It), :time => Time.(It),
                  :instant => FHIRInstant.(It),
                  :dateTime => FHIRDateTime.(It),
                  :base64Binary => base64decode.(It))
-            primitive_registry[handle] =
+            registry.primitive[handle] =
                 tuple(get(basetypes, handle, String),
-                      get(conversion, handle, It))
+                      get(constandard, handle, It))
             continue
         end
     end
@@ -259,50 +271,55 @@ function load_resource_registry()
                        "Integer" => Integer, "Decimal" => Number)
        # TODO: handle Date, DateTime, Time, Quantity
        handle = string("http://hl7.org/fhirpath/System.", key)
-       primitive_registry[Symbol(handle)] = tuple(val, It)
+       registry.primitive[Symbol(handle)] = tuple(val, It)
     end
 
+    return registry
 end
 
-function load_example_registry()
-    if length(example_registry) != 0
-        return
+function load_examples(standard::Symbol)::Registry
+    registry = registries[standard]
+    if length(registry.example) != 0
+        return registry
     end
-
     conflicts = Set{Tuple{Symbol, Symbol}}()
-    for fname in readdir(joinpath(artifact"fhir-r4", "fhir-r4"))
+
+    prefix = "fhir-$(lowercase(string(standard)))"
+    folder = joinpath(@artifact_str(prefix), prefix)
+    for fname in readdir(folder)
         if endswith(fname, ".canonical.json") || !contains(fname, "-example")
             continue
         end
-        item = JSON.parsefile(joinpath(artifact"fhir-r4", "fhir-r4", fname))
+        item = JSON.parsefile(joinpath(folder, fname))
         if haskey(item, "id") && haskey(item, "resourceType")
             handle = (Symbol(item["resourceType"]), Symbol(item["id"]))
-            if haskey(example_registry, handle)
+            if haskey(registry.example, handle)
                 push!(conflicts, handle)
             else
-                example_registry[handle] = convert(DataKnot, item)
+                registry.example[handle] = convert(DataKnot, item)
             end
         end
     end
     # unregister resource examples with duplicate identifiers
     for item in conflicts
-        pop!(example_registry, item)
+        pop!(registry.example, item)
     end
+    return registry
 end
 
 # Loop though the profiles and corresponding examples to see that
 # each profile query can be run on its corresponding examples.
-function sanity_check(version::Symbol = :R4)
-    @assert version == :R4
-    load_resource_registry()
-    load_example_registry()
-    for resource in keys(resource_registry)
+function sanity_check(standard::Symbol)
+    load_registry(standard)
+    load_examples(standard)
+    registry = registries[standard]
+    for resource in keys(registry.resource)
         println(resource)
-        Q = FHIRProfile(version, resource)
-        for (rt, id) in keys(example_registry)
+        Q = FHIRProfile(standard, resource)
+        for (rt, id) in keys(registry.example)
             if rt == resource
                 println(resource, " ", id)
-                ex = FHIRExample(version, resource, id)
+                ex = FHIRExample(standard, resource, id)
                 try
                     ex[Q]
                 catch e
@@ -314,61 +331,59 @@ function sanity_check(version::Symbol = :R4)
 end
 
 """
-    FHIRProfile(version, profile)
+    FHIRProfile(standard, profile)
 
 This returns a `Query` that reflects the type definition for the given
 profile. Note that this generated query profile doesn't expand generic
 `Resource` or `Extension` references, nor does it expand recursive occurances
 of the same profile.
 """
-function FHIRProfile(version::Symbol, profile)
-    @assert version == :R4
+function FHIRProfile(standard::Symbol, profile)
+    registry = load_registry(standard)
     ident = Symbol(profile)
-    if haskey(profile_registry, ident)
-        return profile_registry[ident]
+    if haskey(registry.profile, ident)
+        return registry.profile[ident]
     end
-    load_resource_registry()
-    if haskey(complex_registry, ident)
-        meta = complex_registry[ident]
-        return profile_registry[ident] =
+    if haskey(registry.complex, ident)
+        meta = registry.complex[ident]
+        return registry.profile[ident] =
             IsDict >>
-            build_profile(Context(), get(meta[It.id]),
+            build_profile(Context(standard), get(meta[It.id]),
                           meta[It.elements], Symbol("complex-type")) >>
             Label(ident)
     end
-    meta = resource_registry[ident]
-    return profile_registry[ident] =
+    meta = registry.resource[ident]
+    return registry.profile[ident] =
         IsDict >>
         Filter((It.resourceType >> IsString) .== get(meta[It.id])) >>
-        build_profile(Context(), get(meta[It.id]),
+        build_profile(Context(standard), get(meta[It.id]),
                       meta[It.elements], :resource) >>
         Label(ident)
 end
 
 """
-    FHIRExample(version, resourceType, id)
+    FHIRExample(standard, resourceType, id)
 
 This returns a `DataKnot` for an example of a profile provided
 in the FHIR specification.
 """
-function FHIRExample(version::Symbol, profile, id)
-    @assert version == :R4
-    load_example_registry()
-    return example_registry[(Symbol(profile), Symbol(id))]
+function FHIRExample(standard::Symbol, profile, id)
+    registry = load_examples(standard)
+    return registry.example[(Symbol(profile), Symbol(id))]
 end
 
 """
-    FHIRField(version, fieldName)
+    FHIRField(standard, fieldName)
 
 This function returns glue to access field properties, including `id`
 and `extension`. Field values should be accessed though individual, type
 specific accessors. The `fieldName` argument should always start with an
 underscore, matching the JSON encoding style.
 """
-function FHIRField(version::Symbol, fieldName::String)
+function FHIRField(standard::Symbol, fieldName::String)
     @assert startswith(fieldName, "_")
     fieldName = Symbol(fieldName)
-    Extension = FHIRProfile(version, :Extension)
+    Extension = FHIRProfile(standard, :Extension)
     return Record(
        :id    => It >> Get(:_) >> Get(fieldName) >>
                  IsOptDict >> Get(:id) >> IsOptString,
@@ -378,7 +393,7 @@ function FHIRField(version::Symbol, fieldName::String)
     ) >> Label(fieldName)
 end
 
-FHIRField(version::Symbol, fieldName::Symbol) =
-    FHIRField(version, String(fieldName))
+FHIRField(standard::Symbol, fieldName::Symbol) =
+    FHIRField(standard, String(fieldName))
 	
 end
