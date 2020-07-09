@@ -3,6 +3,7 @@ make() =
     runtests(joinpath("doc/src", ENV["DOCFILE"]), mod=Main)
     Base.active_repl.options.iocontext[:displaysize] = 
       (convert(Integer, trunc(displaysize(Base.stdout)[1] * 2/3)), 72)
+    nothing
   end
 
 atreplinit() do repl

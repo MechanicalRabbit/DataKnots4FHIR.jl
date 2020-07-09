@@ -16,10 +16,12 @@ import DataKnots: translate, lookup, Lift, Label
 export
     FHIRProfile,
     FHIRExample,
-    FHIRField
+    FHIRField,
+    @define
 
 include("profile.jl")
 include("helpers.jl")
 include("temporal.jl")
-	
+include("valueset.jl")
+
 end
