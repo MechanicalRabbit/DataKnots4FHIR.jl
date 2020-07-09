@@ -1,11 +1,16 @@
 # This macro lets us `@define` reusable queries using the macro syntax;
 # it's not standard DataKnots, but it makes building queries more fluid.
+# For now, we handle only zero argument definitions.
 
 macro define(expr)
     @assert expr.head === Symbol("=")
-    name = Expr(:quote, expr.args[1])
+    call = expr.args[1]
+    @assert isa(call, Expr) && call.head == Symbol("call")
+    name = Expr(:quote, call.args[1])
+    @assert length(call.args) == 1
     body = :(translate($__module__, $(Expr(:quote, expr.args[2]))))
-    return :(DataKnots.translate(mod::Module, ::Val{$(name)}) = $(body))
+    return :(DataKnots.translate(mod::Module, ::Val{$(name)},
+                                 ::Tuple{}) = $(body))
 end
 
 # Temporary sort since it's not implemented yet, it happens that

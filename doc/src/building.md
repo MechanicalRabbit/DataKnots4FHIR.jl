@@ -67,12 +67,12 @@ mean that a ``CodeableConcept`` matches the requested coding. Here, we
 see that the 10 patients that are expected to have a positive numerator
 have had a ``paptest``.
 
-    @define is_paptest = iscoded("http://loinc.org",
+    @define is_paptest() = iscoded("http://loinc.org",
                   "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
                   "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
 
-    @query db {count(pass.$Bundle.filter(observation.code.is_paptest)),
-               count(fail.$Bundle.filter(observation.code.is_paptest))}
+    @query db {count(pass.$Bundle.filter(observation.code.is_paptest())),
+               count(fail.$Bundle.filter(observation.code.is_paptest()))}
     #=>
     │ #A  #B │
     ┼────────┼
