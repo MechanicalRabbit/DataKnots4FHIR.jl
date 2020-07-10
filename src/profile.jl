@@ -1,4 +1,4 @@
-# As a profile query is generated, it consists of type assertions;
+# belAs a profile query is generated, it consists of type assertions;
 # since some of those can be complex, we'll define them here.
 
 StringDict  = Dict{String, Any}
@@ -63,8 +63,7 @@ UnpackProfile =
          :base => get_base.(It.path),
          :name => get_name.(It.path),
          :is_variant => endswith.(It.path, "[x]"),
-         :mandatory => ((It.min >> IsInt) .!== 0) .&
-                        (.! endswith.(It.path, "[x]")),
+         :mandatory => ((It.min >> IsInt) .!== 0),
          :singular => ((It.max >> IsString) .== "1"),
          :contentReference => It.contentReference >> IsOptString,
          :typecode => It.type >> IsOptVector >> IsVector >> IsDict >>
@@ -125,8 +124,9 @@ end
 # Some FHIR fields are variants. When they are converted into a label,
 # the underlying datatype is appended, after it's first letter is made
 # uppercase; do this as a Julia scalar function rather than in a query.
+make_label_postfix(code::String) = "$(uppercase(code)[1])$(code[2:end])"
 make_label(name::String, is_variant::Bool, code::String) =
-  Symbol(is_variant ? "$(name)$(uppercase(code)[1])$(code[2:end])" : name)
+  Symbol(is_variant ? "$(name)$(make_label_postfix(code))" : name)
 
 # Essentially, our profile queries build records of fields that are
 # nested records or concrete types properly cast.
@@ -165,6 +165,7 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
             continue
         end
         if "BackboneElement" == row[:typecode][1]
+            @assert length(row[:typecode]) == 1
             Nested = build_profile(ctx, "$(base).$(name)", elements)
             Declaration = make_declaration(singular, mandatory, StringDict)
             push!(fields, Get(Symbol(name)) >> Declaration >> Nested >>
@@ -173,8 +174,17 @@ function build_profile(ctx::Context, base::String, elements::DataKnot,
         end
         for typecode in row[:typecode]
             label = make_label(name, is_variant, typecode)
-            Query = make_field(ctx, typecode, singular, mandatory)
+            Query = make_field(ctx, typecode, singular,
+                               mandatory && !is_variant)
             push!(fields, Get(label) >> Query >> Label(label))
+        end
+        if is_variant
+           Q = Get(make_label(name, true, row[:typecode][1]))
+           for typecode in row[:typecode][2:end]
+               Q = coalesce.(Q, Get(make_label(name, true, typecode)))
+           end
+           Declaration = make_declaration(singular, mandatory, Any)
+           push!(fields, Q >> Declaration >> Label(Symbol(name)))
         end
     end
     push!(fields, It >> Label(:_))
