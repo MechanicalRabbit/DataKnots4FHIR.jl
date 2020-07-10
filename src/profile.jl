@@ -371,3 +371,11 @@ end
 
 FHIRField(standard::Symbol, fieldName::Symbol) =
     FHIRField(standard, String(fieldName))
+
+# translate to macro forms that use string arguments
+
+translate(mod::Module, ::Val{:fhir_profile}, args::Tuple{String, String}) =
+  FHIRProfile(Symbol(args[1]), args[2])
+
+translate(mod::Module, ::Val{:fhir_field}, args::Tuple{String, String}) =
+  FHIRField(Symbol(args[1]), args[2])

@@ -3,11 +3,10 @@
 # For now, we handle only zero argument definitions.
 
 macro define(expr)
-    @assert expr.head === Symbol("=")
+    @assert Meta.isexpr(expr, :(=))
     call = expr.args[1]
-    @assert isa(call, Expr) && call.head == Symbol("call")
+    @assert Meta.isexpr(call, :call, 1)
     name = Expr(:quote, call.args[1])
-    @assert length(call.args) == 1
     body = :(translate($__module__, $(Expr(:quote, expr.args[2]))))
     return :(DataKnots.translate(mod::Module, ::Val{$(name)},
                                  ::Tuple{}) = $(body))

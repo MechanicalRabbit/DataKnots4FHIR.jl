@@ -34,23 +34,25 @@ numerator criteria, and 10 that fail to meet this criteria.
     =#
 
 The first thing we need to do is construct the relevant FHIR profiles.
-We need to assemble our bundle
+Let's define what it means to be a bundle...
 
-    Patient = FHIRProfile(:STU3, "Patient")
-    Condition = FHIRProfile(:STU3, "Condition")
-    Observation = FHIRProfile(:STU3, "Observation")
+    @define as_patient() = fhir_profile("STU3", "Patient")
+    @define as_condition() = fhir_profile("STU3", "Condition")
+    @define as_observation() = fhir_profile("STU3", "Observation")
+    @define as_bundle() = fhir_profile("STU3", "Bundle")
 
-    Bundle =
-       FHIRProfile(:STU3, :Bundle) >>
-       Record(
-        :patient => It.entry.resource >> Patient >> Is0to1,
-        :condition => It.entry.resource >> Condition,
-        :observation => It.entry.resource >> Observation )
+    @define unpack() = begin
+         as_bundle()
+         record(
+           it.entry.resource.as_patient().is0to1(),
+           it.entry.resource.as_condition(),
+           it.entry.resource.as_observation())
+    end
 
-    @query db pass.$Bundle{
-               patient.id,
-               no_obs => count(observation),
-               no_cnd => count(condition)}
+    @query db pass.unpack(){
+               Patient.id,
+               no_obs => count(Observation),
+               no_cnd => count(Condition)}
     #=>
        │ Bundle                                               │
        │ id                                    no_obs  no_cnd │
@@ -71,10 +73,11 @@ have had a ``paptest``.
                   "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
                   "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
 
-    @query db {count(pass.$Bundle.filter(observation.code.is_paptest())),
-               count(fail.$Bundle.filter(observation.code.is_paptest()))}
+    @query db {count(pass.unpack().filter(Observation.code.is_paptest())),
+               count(fail.unpack().filter(Observation.code.is_paptest()))}
     #=>
     │ #A  #B │
     ┼────────┼
     │ 10   0 │
     =#
+
