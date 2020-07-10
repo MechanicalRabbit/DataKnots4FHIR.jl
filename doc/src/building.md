@@ -86,7 +86,9 @@ Let's see what other data is involved with observations that are paptests.
 
     @define paptest_with_results() =
               Observation.filter(code.is_paptest() &
-                                 exists(value))
+                                 exists(value) &
+                                 status.in("final", "amended",
+                                   "corrected", "preliminary"))
 
     @query db begin
          pass.unpack()

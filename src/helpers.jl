@@ -24,3 +24,9 @@ Sort(X) = Given(:source => It, Group(X) >> It.source >> Label(nothing))
 translate(mod::Module, ::Val{:sort}, args::Tuple{Any}) =
     Sort(translate.(Ref(mod), args)...)
 
+# Checking to see if a value is within a list
+
+In(Xs...) = in.(It, Lift(tuple, (Xs...,)))
+
+translate(mod::Module, ::Val{:in}, args::Tuple{Vararg{Any}}) =
+    In(translate.(Ref(mod), args)...)
