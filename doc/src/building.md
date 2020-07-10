@@ -82,17 +82,53 @@ have had a ``paptest``.
     =#
 
 Let's see what other data is involved with observations that are paptests.
+The CQL for this query is...
 
+```CQL
+define "Pap Test with Results":
+	[Observation: "Pap Test"] PapTest
+		where PapTest.value is not null
+			and PapTest.status in { 'final', 'amended',
+                                                'corrected', 'preliminary' }
+```
 
     @define paptest_with_results() =
               Observation.filter(code.is_paptest() &
                                  exists(value) &
                                  status.in("final", "amended",
-                                   "corrected", "preliminary"))
+                                           "corrected", "preliminary"))
 
     @query db begin
          pass.unpack()
          filter(exists(paptest_with_results()))
+         Patient.id
+    end
+    #=>
+       │ id                                   │
+    ───┼──────────────────────────────────────┼
+     1 │ 3abdd6da-1f73-4964-a926-4694a6ad0d92 │
+     2 │ 98f9fe24-5bc3-4361-89ab-ea0c8e89f868 │
+     3 │ 83e608cc-dffc-42dd-9923-d6ed4490734a │
+     ⋮
+     9 │ e07bddf8-00a2-4f46-84e6-6209e3c528a9 │
+    10 │ 25d8d8dd-64d4-4adb-8e4a-010585236c62 │
+    =#
+
+Next, let's define the measure period, and see which of these
+observations fall within that measure period. There are two deficiencies
+here: we're using zoned datetime and we don't yet have open intervals.
+
+    @define measure_period =
+       time_interval("2019-01-01T00:00:00.000Z",
+                     "2019-12-31T23:59:59.999Z")
+
+    @query db begin
+         pass.unpack()
+         filter(
+             paptest_with_results().
+             effectiveDateTime.
+             during(measure_period)
+         )
          Patient.id
     end
     #=>
