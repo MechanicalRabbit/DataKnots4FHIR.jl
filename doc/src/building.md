@@ -37,26 +37,31 @@ numerator criteria, and 10 that fail to meet this criteria.
 For starters, let's define a Quality Data Model suitable to this
 measure.
 
-    QDM_LabTest =
+    QDMProfile(::Val{:STU3}, ::Val{Symbol("5.3")},
+               ::Val{Symbol("Laboratory Test, Performed")}) =
         It.entry.resource >>
         FHIRProfile(:STU3, "Observation") >>
         Record(
-          :Code => It.code.coding >> Is1toN >>
+          :code => It.code.coding >> Is1toN >>
                    Coding.(It.system, It.code),
-          Symbol("Relevant Period") =>
+          :relevantPeriod =>
               DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
               DateTimePeriod.(It, It)) >>
-        Label(Symbol("Laboratory Test, Performed"))
+        Label(:LaboratoryTestPerformed)
+
+    QDMProfile(vFHIR, vQDM::String, element::String) =
+        QDMProfile(Val(Symbol(vFHIR)), Val(Symbol(vQDM)),
+                   Val(Symbol(element)))
 
     QDM = FHIRProfile(:STU3, "Bundle") >>
           Record(
-            QDM_LabTest
+             QDMProfile("STU3", "5.3", "Laboratory Test, Performed")
           )
 
-    db[It.pass >> QDM >> Get("Laboratory Test, Performed")]
+    db[It.pass >> QDM >> It.LaboratoryTestPerformed]
     #=>
-       │ Laboratory Test, Performed                                       │
-       │ Code                        Relevant Period                      │
+       │ LaboratoryTestPerformed                                          │
+       │ code                        relevantPeriod                       │
     ───┼──────────────────────────────────────────────────────────────────┼
      1 │ 10524-7 [http://loinc.org]  2018-03-27T12:52:10 to 2018-03-27T12…│
      2 │ 10524-7 [http://loinc.org]  2019-02-20T12:52:10 to 2019-02-20T12…│
