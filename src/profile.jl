@@ -1,4 +1,4 @@
-# belAs a profile query is generated, it consists of type assertions;
+# As a profile query is generated, it consists of type assertions;
 # since some of those can be complex, we'll define them here.
 
 StringDict  = Dict{String, Any}

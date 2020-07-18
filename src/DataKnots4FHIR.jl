@@ -11,17 +11,20 @@ using Pkg.Artifacts
 using TimeZones
 
 import Base: show
-import DataKnots: translate, lookup, Lift, Label
+import DataKnots: translate, lookup, Lift, Label, Get
 
 export
     FHIRProfile,
     FHIRExample,
     FHIRField,
+    Coding,
+    DateTimePeriod,
     @define
 
-include("profile.jl")
 include("helpers.jl")
 include("temporal.jl")
 include("valueset.jl")
+include("profile.jl")
+include("model.jl")
 
 end

@@ -1,3 +1,13 @@
+struct Coding
+     system::Symbol
+     code::Symbol
+end
+
+Coding(system::String, code::String) =
+   Coding(Symbol(system), Symbol(code))
+
+show(io::IO, c::Coding) = print(io, "$(c.code) [$(c.system)]")
+
 AnyOf(Xs...) = Lift(|, (Xs...,))
 OneOf(X, Ys...) = AnyOf((X .== Y for Y in Ys)...)
 

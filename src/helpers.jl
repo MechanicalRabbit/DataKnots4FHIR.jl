@@ -16,6 +16,10 @@ macro define(expr)
                                  ::Tuple{}) = $(body))
 end
 
+# For the QDM we deal with symbols having spaces...
+
+DataKnots.Get(s::String) = Get(Symbol(s))
+
 # Temporary sort since it's not implemented yet, it happens that
 # group provides the functionality needed though.
 
