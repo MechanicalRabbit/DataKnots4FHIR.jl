@@ -7,13 +7,14 @@ macro define(expr)
     body = :(translate($__module__, $(Expr(:quote, expr.args[2]))))
     if typeof(expr.args[1]) == Symbol
         name = Expr(:quote, expr.args[1])
-        return :(DataKnots.translate(mod::Module, ::Val{$(name)}) = $(body))
+        return :(DataKnots.translate(mod::Module, ::Val{$(name)}) =
+                     $(body) >> Label($(name)))
     end
     call = expr.args[1]
     @assert Meta.isexpr(call, :call, 1)
     name = Expr(:quote, call.args[1])
-    return :(DataKnots.translate(mod::Module, ::Val{$(name)},
-                                 ::Tuple{}) = $(body))
+    return :(DataKnots.translate(mod::Module, ::Val{$(name)}, ::Tuple{}) =
+                 $(body) >> Label($(name)))
 end
 
 # For the QDM we deal with symbols having spaces...
@@ -58,7 +59,7 @@ function DispatchByType(env::Environment, p::Pipeline,
     error("doesn't match any type: $(syntaxof(target(p)))")
 end
 
-# 
+#
 # A few helpers for list comparisons.
 #
 

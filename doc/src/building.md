@@ -79,6 +79,7 @@ have had a ``paptest``.
                   "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
                   "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
 
+
     @query db pass.$QDM.LaboratoryTestPerformed.
                  filter(is_paptest() & exists(value))
     #=>
@@ -92,6 +93,34 @@ have had a ``paptest``.
     20 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
     =#
 
+One of the first CQL queries in CMS124v7 is "Pap Test with Results", we can
+now define an equivalent using query combinators.
+
+```CQL
+define "Pap Test with Results":
+        ["Laboratory Test, Performed": "Pap Test"] PapTest
+                where PapTest.result is not null
+```
+
+    @define PapTestWithResults =
+                LaboratoryTestPerformed.
+                    filter(is_paptest() & exists(value))
+
+    @query db pass.$QDM.PapTestWithResults
+    #=>
+       │ PapTestWithResults                                               │
+       │ code                  value                 relevantPeriod       │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-27T12:52:10 …│
+     2 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-20T12:52:10 …│
+     ⋮
+    19 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-01T14:02:25 …│
+    20 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
+    =#
+
+Note that the equivalent version using CQL for QUICK includes further
+limitations on the `Observation` property `status`; for us, this is done
+earlier as we convert to the QDM model.
 
 ```CQL
 define "Pap Test with Results":
@@ -100,6 +129,8 @@ define "Pap Test with Results":
 			and PapTest.status in { 'final', 'amended',
                                                 'corrected', 'preliminary' }
 ```
+
+Next, let's look at intervals.
 
 ```CQL
 define "Pap Test Within 3 Years":
