@@ -40,6 +40,8 @@ measure.
     QDM_LabTest =
         It.entry.resource >>
         FHIRProfile(:STU3, "Observation") >>
+        Filter(It.status .∈  ["final", "amended", "corrected",
+                              "preliminary"]) >>
         Record(
           :code => It.code.coding >> Is1toN >>
                    Coding.(It.system, It.code),
@@ -77,7 +79,8 @@ have had a ``paptest``.
                   "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
                   "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
 
-    @query db pass.$QDM.LaboratoryTestPerformed.filter(is_paptest())
+    @query db pass.$QDM.LaboratoryTestPerformed.
+                 filter(is_paptest() & exists(value))
     #=>
        │ LaboratoryTestPerformed                                          │
        │ code                  value                 relevantPeriod       │

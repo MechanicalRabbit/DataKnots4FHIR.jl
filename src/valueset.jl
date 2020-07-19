@@ -12,10 +12,10 @@ lookup(ity::Type{Coding}, name::Symbol) =
 show(io::IO, c::Coding) = print(io, "$(c.code) [$(c.system)]")
 
 IsCoded(system, codes...) =
-    DispatchByType(Coding => It, Any => It.code) >>
-    Exists(It >> Filter(
-      (It.system .== Symbol.(system)) .&
-      OneOf(It.code, (Symbol.(code) for code in codes)...)))
+    Exists(
+       DispatchByType(Coding => It, Any => It.code) >>
+       Filter((It.system .== Symbol.(system)) .&
+         OneOf(It.code, (Symbol.(code) for code in codes)...)))
 
 translate(mod::Module, ::Val{:iscoded}, args::Tuple{Any,Vararg{Any}}) =
     IsCoded(translate.(Ref(mod), args)...)
