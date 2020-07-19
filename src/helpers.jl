@@ -58,3 +58,10 @@ function DispatchByType(env::Environment, p::Pipeline,
     error("doesn't match any type: $(syntaxof(target(p)))")
 end
 
+# 
+# A few helpers for list comparisons.
+#
+
+AnyOf(Xs...) = Lift(|, (Xs...,))
+OneOf(X, Ys...) = AnyOf((X .== Y for Y in Ys)...)
+
