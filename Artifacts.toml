@@ -25,3 +25,10 @@ git-tree-sha1 = "57de5c4c10a019b26649ca3453b9a7c6f69f483e"
     [[synthea-79.download]]
     sha256 = "db63a7976361546c771f6cf10b02f79dee68d17a3b1bcc4457d53937090eda50"
     url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/synthea-79-20200106.tar.gz"
+
+[vsac-2020]
+git-tree-sha1 = "9000df7c60554871969371412a9efbed06bcb118"
+
+    [[vsac-2020.download]]
+    sha256 = "693070b2f8e73ba06635912315db72eaddf7ed0001130f1ceb1b8758b8bb2dbc"
+    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/vsac-20200507.tar.gz"

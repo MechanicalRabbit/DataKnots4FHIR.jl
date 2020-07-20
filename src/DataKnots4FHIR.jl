@@ -4,14 +4,15 @@ using Base64
 using DataKnots
 using DataKnots: Query, Environment, Pipeline, ValueOf, BlockOf,
                  target, lookup, cover, uncover, lift, compose,
-                 syntaxof, relabel, assemble, designate, fits, relabel
+                 syntaxof, relabel, assemble, designate, fits,
+                 relabel, render_value
 using Dates
 using JSON
 using Pkg.Artifacts
 using TimeZones
 
 import Base: show
-import DataKnots: translate, lookup, Lift, Label, Get
+import DataKnots: translate, lookup, render_value, Lift, Label, Get
 
 export
     FHIRProfile,

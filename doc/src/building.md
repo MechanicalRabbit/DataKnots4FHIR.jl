@@ -1,8 +1,14 @@
 ## Incremental Building of CMS124v7
 
-In this workbook, we will incrementally develop a CMS124v7 measure;
-going though the process of discovery and building/testing each
-component. The completed query will be maintained separately.
+In this workbook, we will incrementally develop a CMS124v7 measure using
+Synthea data provided in January 2020 as part of a HL7 [connectathon](
+https://github.com/DBCG/connectathon/tree/master/fhir3/supplemental-tests).
+There are two approaches to computing this measure with the Clinical
+Quality Language (CQL), using the Quality Data Model (QDM) or using the
+QUICK model directly from FHIR. This workbook shows how we could see
+this work in two stages. First, we'll create a minimal conversion of
+FHIR to a model inspired by the QDM. Second, we'll implement CMS124v7
+using this inspiried model.
 
     using JSON
     using Dates
@@ -44,10 +50,10 @@ measure.
                               "preliminary"]) >>
         Record(
           :code => It.code.coding >> Is1toN >>
-                   Coding.(It.system, It.code),
+                   Coding.(It.code, It.system),
           :value =>
               It.valueCodeableConcept.coding >> Is1toN >>
-                   Coding.(It.system, It.code),
+                   Coding.(It.code, It.system),
           :relevantPeriod =>
               DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
               DateTimePeriod.(It, It)
@@ -70,18 +76,17 @@ measure.
     27 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
     =#
 
-We can think of value-sets as predicates. Let's define ``is_paptest`` to
+We can think of value-sets as predicates. Let's define ``isPapTest`` to
 mean that a ``CodeableConcept`` matches the requested coding. Here, we
 see that the 10 patients that are expected to have a positive numerator
 have had a ``paptest``.
 
-    @define is_paptest() = iscoded("http://loinc.org",
+    @define isPapTest() = iscoded("http://loinc.org",
                   "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
                   "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
 
-
     @query db pass.$QDM.LaboratoryTestPerformed.
-                 filter(is_paptest() & exists(value))
+                 filter(isPapTest() & exists(value))
     #=>
        │ LaboratoryTestPerformed                                          │
        │ code                  value                 relevantPeriod       │
@@ -93,8 +98,12 @@ have had a ``paptest``.
     20 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
     =#
 
-One of the first CQL queries in CMS124v7 is "Pap Test with Results", we can
-now define an equivalent using query combinators.
+One of the first CQL queries in CMS124v7 is "Pap Test with Results", we
+can now define an equivalent using query combinators. This same query
+combinator can be created using the UUID from ULMS.
+
+    @define isPapTest() = iscoded("2.16.840.1.113883.3.464.1003.108.12.1017")
+
 
 ```CQL
 define "Pap Test with Results":
@@ -104,7 +113,7 @@ define "Pap Test with Results":
 
     @define PapTestWithResults =
                 LaboratoryTestPerformed.
-                    filter(is_paptest() & exists(value))
+                    filter(isPapTest() & exists(value))
 
     @query db pass.$QDM.PapTestWithResults
     #=>
