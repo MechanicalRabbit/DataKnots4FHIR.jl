@@ -1,44 +1,22 @@
-struct Coding
-     code::Symbol
-     system::Symbol
-end
+# This lets us build a ValueSet query that returns all system/code pairs
+# from a UMLS VSAC data source; which is packaged as an artfact.
 
-Coding(code::String, system::String) =
-   Coding(Symbol(code), Symbol(system))
-
-lookup(ity::Type{Coding}, name::Symbol) =
-    lift(getfield, name) |> designate(ity, Symbol)
-
-show(io::IO, c::Coding) = print(io, "Coding(\"$(c.code)\",\"$(c.system)\")")
-
-DataKnots.render_value(c::Coding) = "$(c.code) [$(c.system)]"
-
-IsCoded(system::String, codes::String...) =
-    Exists(
-       DispatchByType(Coding => It, Any => It.code) >>
-       Filter((It.system .== Symbol(system)) .&
-         OneOf(It.code, (Symbol(code) for code in codes)...)))
-
-system_lookup = Dict(
-    "LOINC" => "http://loinc.org",
-    "SNOMEDCT" => "http://snomed.info/sct",
-    "RXNORM" => "http://www.nlm.nih.gov/research/umls/rxnorm",
-    "UCUM" => "http://unitsofmeasure.org")
-
-function get_valueset(uuid::String)
-    codings = []
-    for line in readlines(joinpath(artifact"vsac-2020", "vsac-2020", uuid))
+function ValueSet(oid::String)
+    systems = String[]
+    codings = String[]
+    for line in readlines(joinpath(artifact"vsac-2020", "vsac-2020", oid))
         (system, code) = split(line, ",")
-        coding = Coding(Symbol(code), Symbol(system_lookup[system]))
-        push!(codings, Ref(coding))
+        push!(systems, system)
+        push!(codings, code)
     end
-    return Tuple(codings)
+    tv = DataKnots.TupleVector(:system => systems, :code => codings)
+    return Lift(DataKnot(Any, DataKnots.BlockVector([1, length(tv)+1], tv)))
 end
 
-IsCoded(uuid::String) =
-    Exists(
-       DispatchByType(Coding => It, Any => It.code) >>
-       Filter(OneOf(It, get_valueset(uuid)...)))
-
-translate(mod::Module, ::Val{:iscoded}, args::Tuple{Any,Vararg{Any}}) =
-    IsCoded(args...)
+macro valueset(expr)
+    @assert Meta.isexpr(expr, :(=), 2)
+    name = Expr(:quote, expr.args[1])
+    knot = ValueSet(string(expr.args[2]))
+    return :(DataKnots.translate(mod::Module, ::Val{$(name)}) =
+                 $(knot) >> Label($(name)))
+end

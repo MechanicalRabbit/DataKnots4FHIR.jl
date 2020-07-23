@@ -40,70 +40,47 @@ numerator criteria, and 10 that fail to meet this criteria.
     │      10       10 │
     =#
 
-For starters, let's define a Quality Data Model suitable to this
-measure.
+In this module, we've defined a "QDM" query that translates a FHIR data
+source as loaded into a QDM. Here we can look at laboratory tests that
+are executed on the `pass` dataset.
 
-    QDM_LabTest =
-        It.entry.resource >>
-        FHIRProfile(:STU3, "Observation") >>
-        Filter(It.status .∈  ["final", "amended", "corrected",
-                              "preliminary"]) >>
-        Record(
-          :code => It.code.coding >> Is1toN >>
-                   Coding.(It.code, It.system),
-          :value =>
-              It.valueCodeableConcept.coding >> Is1toN >>
-                   Coding.(It.code, It.system),
-          :relevantPeriod =>
-              DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
-              DateTimePeriod.(It, It)
-        ) >> Label(:LaboratoryTestPerformed)
-
-    QDM = FHIRProfile(:STU3, "Bundle") >>
-          Record(
-             QDM_LabTest
-          )
-
-    @query db pass.$QDM.LaboratoryTestPerformed
+    @query db pass.QDM.LaboratoryTestPerformed{code, value, relevantPeriod}
     #=>
        │ LaboratoryTestPerformed                                          │
-       │ code                  value                 relevantPeriod       │
+       │ code{system,code}  value{system,code}   relevantPeriod           │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-27T12:52:10 …│
-     2 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-20T12:52:10 …│
+     1 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-27T12:52:10 to 2…│
+     2 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-20T12:52:10 to 2…│
      ⋮
-    26 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-01T14:02:25 …│
-    27 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
+    26 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-01T14:02:25 to 2…│
+    27 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-24T14:02:25 to 2…│
     =#
 
-We can think of value-sets as predicates. Let's define ``isPapTest`` to
-mean that a ``CodeableConcept`` matches the requested coding. Here, we
-see that the 10 patients that are expected to have a positive numerator
-have had a ``paptest``.
+In an eCQM, one of the very first things we want to do is filter by a
+value set. We can use the `@valueset` macro to declare `PapTest` data,
+in a manner comparable to CQL. It can then be treated as a query.
 
-    @define isPapTest() = iscoded("http://loinc.org",
-                  "10524-7", "18500-9", "19762-4", "19764-0", "19765-7",
-                  "19766-5", "19774-9", "33717-0", "47527-7", "47528-5")
+```CQL
+valueset "Pap Test": 'urn:oid:2.16.840.1.113883.3.464.1003.108.12.1017'
+```
 
-    @query db pass.$QDM.LaboratoryTestPerformed.
-                 filter(isPapTest() & exists(value))
+    @valueset PapTest = "2.16.840.1.113883.3.464.1003.108.12.1017"
+
+    @query db PapTest
     #=>
-       │ LaboratoryTestPerformed                                          │
-       │ code                  value                 relevantPeriod       │
-    ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-27T12:52:10 …│
-     2 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-20T12:52:10 …│
+       │ PapTest         │
+       │ system  code    │
+    ───┼─────────────────┼
+     1 │ LOINC   10524-7 │
+     2 │ LOINC   18500-9 │
      ⋮
-    19 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-01T14:02:25 …│
-    20 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
+     9 │ LOINC   47527-7 │
+    10 │ LOINC   47528-5 │
     =#
 
 One of the first CQL queries in CMS124v7 is "Pap Test with Results", we
 can now define an equivalent using query combinators. This same query
 combinator can be created using the UUID from ULMS.
-
-    @define isPapTest() = iscoded("2.16.840.1.113883.3.464.1003.108.12.1017")
-
 
 ```CQL
 define "Pap Test with Results":
@@ -111,11 +88,13 @@ define "Pap Test with Results":
                 where PapTest.result is not null
 ```
 
+    @define isPapTest() = exists(code.in(it, PapTest))
+
     @define PapTestWithResults =
                 LaboratoryTestPerformed.
                     filter(isPapTest() & exists(value))
 
-    @query db pass.$QDM.PapTestWithResults
+    @query db pass.QDM.PapTestWithResults
     #=>
        │ PapTestWithResults                                               │
        │ code                  value                 relevantPeriod       │

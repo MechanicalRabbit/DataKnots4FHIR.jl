@@ -20,12 +20,13 @@ export
     FHIRField,
     Coding,
     DateTimePeriod,
-    @define
+    @define,
+    @valueset
 
 include("helpers.jl")
 include("temporal.jl")
 include("valueset.jl")
 include("profile.jl")
-include("model.jl")
+include("quality.jl")
 
 end
