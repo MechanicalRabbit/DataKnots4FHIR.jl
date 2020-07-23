@@ -66,3 +66,14 @@ end
 AnyOf(Xs...) = Lift(|, (Xs...,))
 OneOf(X, Ys...) = AnyOf((X .== Y for Y in Ys)...)
 
+
+# Let `any` be used within a macro
+function Base.any(cr::DataKnots.BlockCursor{Bool})
+    for k in eachindex(cr)
+        if cr[k]
+            return true
+        end
+    end
+    return false
+       end
+

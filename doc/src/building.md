@@ -88,7 +88,7 @@ define "Pap Test with Results":
                 where PapTest.result is not null
 ```
 
-    @define isPapTest() = exists(code.in(it, PapTest))
+    @define isPapTest() = any(code.(it ∈  PapTest))
 
     @define PapTestWithResults =
                 LaboratoryTestPerformed.
@@ -97,13 +97,13 @@ define "Pap Test with Results":
     @query db pass.QDM.PapTestWithResults
     #=>
        │ PapTestWithResults                                               │
-       │ code                  value                 relevantPeriod       │
+       │ code{system,code}  value{system,code}   relevantPeriod           │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-27T12:52:10 …│
-     2 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-20T12:52:10 …│
+     1 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-27T12:52:10 to 2…│
+     2 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-20T12:52:10 to 2…│
      ⋮
-    19 │ 10524-7 [http://loin… 445528004 [http://sn… 2018-03-01T14:02:25 …│
-    20 │ 10524-7 [http://loin… 445528004 [http://sn… 2019-02-24T14:02:25 …│
+    19 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-01T14:02:25 to 2…│
+    20 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-24T14:02:25 to 2…│
     =#
 
 Note that the equivalent version using CQL for QUICK includes further
