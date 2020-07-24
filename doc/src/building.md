@@ -47,13 +47,13 @@ are executed on the `pass` dataset.
     @query db pass.QDM.LaboratoryTestPerformed{code, value, relevantPeriod}
     #=>
        │ LaboratoryTestPerformed                                          │
-       │ code{system,code}  value{system,code}   relevantPeriod           │
+       │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-27T12:52:10 to 2…│
-     2 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-20T12:52:10 to 2…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
      ⋮
-    26 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-01T14:02:25 to 2…│
-    27 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-24T14:02:25 to 2…│
+    26 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
+    27 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
     =#
 
 In an eCQM, one of the very first things we want to do is filter by a
@@ -69,13 +69,13 @@ valueset "Pap Test": 'urn:oid:2.16.840.1.113883.3.464.1003.108.12.1017'
     @query db PapTest
     #=>
        │ PapTest         │
-       │ system  code    │
     ───┼─────────────────┼
-     1 │ LOINC   10524-7 │
-     2 │ LOINC   18500-9 │
+     1 │ 10524-7 [LOINC] │
+     2 │ 18500-9 [LOINC] │
+     3 │ 19762-4 [LOINC] │
      ⋮
-     9 │ LOINC   47527-7 │
-    10 │ LOINC   47528-5 │
+     9 │ 47527-7 [LOINC] │
+    10 │ 47528-5 [LOINC] │
     =#
 
 One of the first CQL queries in CMS124v7 is "Pap Test with Results", we
@@ -97,13 +97,13 @@ define "Pap Test with Results":
     @query db pass.QDM.PapTestWithResults
     #=>
        │ PapTestWithResults                                               │
-       │ code{system,code}  value{system,code}   relevantPeriod           │
+       │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-27T12:52:10 to 2…│
-     2 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-20T12:52:10 to 2…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
      ⋮
-    19 │ LOINC, 10524-7     SNOMEDCT, 445528004  2018-03-01T14:02:25 to 2…│
-    20 │ LOINC, 10524-7     SNOMEDCT, 445528004  2019-02-24T14:02:25 to 2…│
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
     =#
 
 Note that the equivalent version using CQL for QUICK includes further

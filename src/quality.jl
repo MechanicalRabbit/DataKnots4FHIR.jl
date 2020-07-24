@@ -10,10 +10,9 @@ system_lookup = Dict{String, String}(
     "http://unitsofmeasure.org" => "UCUM")
 
 CodableConcept =
-    It.coding >> Record(
-            :system => Lift(x->system_lookup[x], (It.system,)) >> Is(String),
-            :code => It.code >> Is1to1
-        )
+    It.coding >> Coding.(
+            Lift(x->system_lookup[x], (It.system,)) >> Is(String),
+            It.code >> Is1to1)
 
 QDM_LabTest =
     It.entry.resource >>
