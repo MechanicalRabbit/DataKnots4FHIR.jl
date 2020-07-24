@@ -9,22 +9,11 @@ system_lookup = Dict{String, String}(
     "http://www.nlm.nih.gov/research/umls/rxnorm" => "RXNORM",
     "http://unitsofmeasure.org" => "UCUM")
 
-function make_concept(cr)
-    retval = Set{Coding}()
-    for k in eachindex(cr)
-        push!(retval, cr[k])
-    end
-    return retval
-end
-
-DataKnots.render_value(s::Set{Coding}) =
-   join([DataKnots.render_value(x) for x in s], "; ")
-
 CodableConcept =
-    make_concept.(
+    CodingSet.(
         It.coding >> Coding.(
-            Lift(x->system_lookup[x], (It.system,)) >> Is(String),
-            It.code >> Is1to1))
+            Lift(x->system_lookup[x], (It.system,)),
+            It.code))
 
 QDM_LabTest =
     It.entry.resource >>

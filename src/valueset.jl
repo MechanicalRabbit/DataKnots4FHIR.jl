@@ -1,4 +1,6 @@
-# We represent `Coding` as a single value type.
+# We represent `Coding` as a structured value, so that it can be
+# worked with as a single value. In a similar way, a `CodeableConcept`
+# could be represented as a `Set{Coding}`.
 
 struct Coding
     system::Symbol
@@ -6,14 +8,30 @@ struct Coding
 end
 
 Coding(system::String, code::String) =
-   Coding(Symbol(system), Symbol(code))
+    Coding(Symbol(system), Symbol(code))
 
 lookup(ity::Type{Coding}, name::Symbol) =
     lift(getfield, name) |> designate(ity, Symbol)
 
-show(io::IO, c::Coding) = print(io, "Coding(\"$(c.system)\",\"$(c.code)\")")
+show(io::IO, c::Coding) =
+    print(io, "Coding(\"$(c.system)\",\"$(c.code)\")")
 
-DataKnots.render_value(c::Coding) = "$(c.code) [$(c.system)]"
+DataKnots.render_value(c::Coding) =
+    "$(c.code) [$(c.system)]"
+
+DataKnots.render_value(s::Set{Coding}) =
+   join([DataKnots.render_value(x) for x in s], "; ")
+
+# This is a temporary work-around to create a Set{Coding} from
+# a stream of Coding objects.
+
+function CodingSet(cr)::Set{Coding}
+    retval = Set{Coding}()
+    for k in eachindex(cr)
+        push!(retval, cr[k])
+    end
+    return retval
+end
 
 # This lets us build a ValueSet query that returns all system/code pairs
 # from a UMLS VSAC data source; which is packaged as an artfact.
@@ -38,10 +56,13 @@ end
 # The matches() operator lets you verify if a `Coding` matches
 # what is in a given value set.
 
-matches(s::Set{Coding}, v::Vector{Coding}) = !isempty(intersect(s,v))
+matches(s::Set{Coding}, v::Vector{Coding}) =
+    !isempty(intersect(s,v))
 
 Matches(Test) =
-    DispatchByType(Set{Coding} => It, Any => It.code) >>
+    DispatchByType(Set{Coding} => It,
+                   Coding => CodingSet.(It),
+                   Any => It.code) >>
     matches.(It, Test)
 
 translate(mod::Module, ::Val{:matches}, args::Tuple{Any,Vararg{Any}}) =
