@@ -104,19 +104,14 @@ define "Pap Test with Results":
     20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
     =#
 
-Note that the equivalent version using CQL for QUICK includes further
-limitations on the `Observation` property `status`; for us, this is done
-earlier as we convert to the QDM model.
+Most CQL queries on the QDM involve date/time interval calculations. These
+can be directly supported in our dialect.
 
 ```CQL
-define "Pap Test with Results":
-	[Observation: "Pap Test"] PapTest
-		where PapTest.value is not null
-			and PapTest.status in { 'final', 'amended',
-                                                'corrected', 'preliminary' }
+parameter "Measurement Period" Interval<DateTime>
 ```
 
-Next, let's look at intervals.
+
 
 ```CQL
 define "Pap Test Within 3 Years":

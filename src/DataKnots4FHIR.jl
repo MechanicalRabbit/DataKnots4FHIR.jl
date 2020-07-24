@@ -9,6 +9,7 @@ using DataKnots: Query, Environment, Pipeline, ValueOf, BlockOf,
 using Dates
 using JSON
 using Pkg.Artifacts
+using Intervals
 using TimeZones
 
 import Base: show

@@ -1,4 +1,4 @@
-## Querying Synthea FHIR Bundles
+## Using FHIR Profiles
 
 This package demonstrates how to query bundles of FHIR using DataKnots
 with a 116 person synthetic dataset. First we import the relevant 

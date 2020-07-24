@@ -82,3 +82,8 @@ AndSubsequent(Y) = and_subsequent.(It >> DateTimePeriod, Lift(Day, (Y,)))
 translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
     AndSubsequent(translate.(Ref(mod), args)...)
 
+# In macros, which wish to write things like `90days`. For Julia
+# this interpreted as "90 * days", hence we just need to make "days"
+# be a constant of 1 day.
+
+translate(::Module, ::Val{:days}) = Dates.Day(1)
