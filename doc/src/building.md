@@ -12,7 +12,7 @@ using this inspiried model.
 
     using JSON
     using Dates
-    using TimeZones
+    using Intervals
     using DataKnots
     using DataKnots4FHIR
     using Pkg.Artifacts
@@ -111,11 +111,56 @@ can be directly supported in our dialect.
 parameter "Measurement Period" Interval<DateTime>
 ```
 
+    @define MeasurePeriod = period("2019-01-01", "2020-01-01")
 
+    @query db MeasurePeriod
+    #=>
+    │ MeasurePeriod                              │
+    ┼────────────────────────────────────────────┼
+    │ 2019-01-01T00:00:00 to 2020-01-01T00:00:00 │
+    =#
 
 ```CQL
 define "Pap Test Within 3 Years":
-	"Pap Test with Results" PapTest
-		where Global."Normalize Interval"(PapTest.effective)
-               ends 3 years or less before end of "Measurement Period"
+        "Pap Test with Results" PapTest
+                where PapTest.relevantPeriod 3 years or less 
+                       before end of "Measurement Period"
 ```
+
+    @define PapTestWithin3Years =
+          PapTestWithResults.
+          filter(relevantPeriod.end > MeasurePeriod.end - 3years)
+
+    @query db pass.QDM.PapTestWithin3Years
+    #=>
+       │ PapTestWithin3Years                                              │
+       │ code             value                 relevantPeriod            │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     ⋮
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    =#
+
+Alternatively, developing a higher-level vocabulary about intervals
+might be a bit easier to work with.
+
+    @define PapTestWithin3Years =
+          PapTestWithResults.
+          filter(relevantPeriod.during(
+                    MeasurePeriod.and_previous(3years)))
+
+    @query db pass.QDM.PapTestWithin3Years
+    #=>
+       │ PapTestWithin3Years                                              │
+       │ code             value                 relevantPeriod            │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     ⋮
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    =#
+
+

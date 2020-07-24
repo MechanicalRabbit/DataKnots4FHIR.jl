@@ -43,18 +43,18 @@ includes(period::DateTimePeriod, val::DateTime) =
     period.stop_time >= val >= period.start_time
 
 includes(period::DateTimePeriod, val::DateTimePeriod) =
-   (val.start_time >= period.start_date) &&
-   (period.stop_time >= val.stop_date)
+   (val.start_time >= period.start_time) &&
+   (period.stop_time >= val.stop_time)
 
 # we define 
 
-and_previous(init::DateTime, len::Day) =
+and_previous(init::DateTime, len) =
     DateTimePeriod(init - len, init)
-and_subsequent(init::DateTime, len::Day) =
+and_subsequent(init::DateTime, len) =
     DateTimePeriod(init, init + len)
-and_previous(di::DateTimePeriod, len::Day) =
+and_previous(di::DateTimePeriod, len) =
     DateTimePeriod(di.start_time - len, di.stop_time)
-and_subsequent(di::DateTimePeriod, len::Day) =
+and_subsequent(di::DateTimePeriod, len) =
     DateTimePeriod(di.start_time, di.stop_time + len)
 
 """
@@ -74,11 +74,11 @@ During(Y) = includes.(Y, It)
 translate(mod::Module, ::Val{:during}, args::Tuple{Any}) =
     During(translate.(Ref(mod), args)...)
 
-AndPrevious(Y) = and_previous.(It >> DateTimePeriod, Lift(Day, (Y,)))
+AndPrevious(Y) = and_previous.(It >> DateTimePeriod, Y)
 translate(mod::Module, ::Val{:and_previous}, args::Tuple{Any}) =
     AndPrevious(translate.(Ref(mod), args)...)
 
-AndSubsequent(Y) = and_subsequent.(It >> DateTimePeriod, Lift(Day, (Y,)))
+AndSubsequent(Y) = and_subsequent.(It >> DateTimePeriod, Y)
 translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
     AndSubsequent(translate.(Ref(mod), args)...)
 
@@ -87,3 +87,5 @@ translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
 # be a constant of 1 day.
 
 translate(::Module, ::Val{:days}) = Dates.Day(1)
+translate(::Module, ::Val{:years}) = Dates.Year(1)
+translate(::Module, ::Val{:months}) = Dates.Month(1)
