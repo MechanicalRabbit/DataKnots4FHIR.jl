@@ -9,10 +9,22 @@ system_lookup = Dict{String, String}(
     "http://www.nlm.nih.gov/research/umls/rxnorm" => "RXNORM",
     "http://unitsofmeasure.org" => "UCUM")
 
+function make_concept(cr)
+    retval = Set{Coding}()
+    for k in eachindex(cr)
+        push!(retval, cr[k])
+    end
+    return retval
+end
+
+DataKnots.render_value(s::Set{Coding}) =
+   join([DataKnots.render_value(x) for x in s], "; ")
+
 CodableConcept =
-    It.coding >> Coding.(
+    make_concept.(
+        It.coding >> Coding.(
             Lift(x->system_lookup[x], (It.system,)) >> Is(String),
-            It.code >> Is1to1)
+            It.code >> Is1to1))
 
 QDM_LabTest =
     It.entry.resource >>
@@ -20,8 +32,8 @@ QDM_LabTest =
     Filter(It.status .∈  ["final", "amended", "corrected",
                           "preliminary"]) >>
     Record(
-      :code => It.code >> CodableConcept >> Is1toN,
-      :value => It.valueCodeableConcept >> CodableConcept >> Is1toN,
+      :code => It.code >> CodableConcept >> Is1to1,
+      :value => It.valueCodeableConcept >> CodableConcept >> Is1to1,
       :relevantPeriod =>
           DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
           DateTimePeriod.(It, It)

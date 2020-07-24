@@ -88,11 +88,9 @@ define "Pap Test with Results":
                 where PapTest.result is not null
 ```
 
-    @define isPapTest() = any(code.(it ∈  PapTest))
-
     @define PapTestWithResults =
                 LaboratoryTestPerformed.
-                    filter(isPapTest() & exists(value))
+                    filter(code.matches(PapTest) & exists(value))
 
     @query db pass.QDM.PapTestWithResults
     #=>
