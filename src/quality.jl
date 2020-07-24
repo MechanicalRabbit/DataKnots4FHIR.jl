@@ -3,17 +3,15 @@
 
 # First, we need a way to convert FHIR's CodableConcept into something
 # that is compatible with the code/system records produced
-system_lookup = Dict{String, String}(
+system_code(url) = Dict{String, String}(
     "http://loinc.org" => "LOINC",
     "http://snomed.info/sct" => "SNOMEDCT",
     "http://www.nlm.nih.gov/research/umls/rxnorm" => "RXNORM",
-    "http://unitsofmeasure.org" => "UCUM")
+    "http://unitsofmeasure.org" => "UCUM")[url]
 
 CodableConcept =
     CodingSet.(
-        It.coding >> Coding.(
-            Lift(x->system_lookup[x], (It.system,)),
-            It.code))
+        It.coding >> Coding.(system_code.(It.system), It.code))
 
 QDM_LabTest =
     It.entry.resource >>

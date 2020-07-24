@@ -420,7 +420,7 @@ To get an actual match, a `Date` has to be constructed.
     │ example │
     =#
 
-This could perhaps be addressed if we used the congruent operator.
+This could perhaps be addressed if we used the congruent operator?
 
     ≅(a::T, b::T) where {T} = a == b
     ≅(a, b) = ≅(promote(a, b)...)
