@@ -9,10 +9,10 @@ using DataKnots: Query, Environment, Pipeline, ValueOf, BlockOf,
 using Dates
 using JSON
 using Pkg.Artifacts
-using Intervals
+using IntervalSets
 using TimeZones
 
-import Base: show
+import Base: show, parse
 import DataKnots: translate, lookup, render_value, Lift, Label, Get
 
 export

@@ -10,11 +10,11 @@ this work in two stages. First, we'll create a minimal conversion of
 FHIR to a model inspired by the QDM. Second, we'll implement CMS124v7
 using this inspiried model.
 
-    using JSON
-    using Dates
-    using Intervals
     using DataKnots
     using DataKnots4FHIR
+    using Dates
+    using IntervalSets
+    using JSON
     using Pkg.Artifacts
 
 Let's create an in-memory database that holds our synthetic patient
@@ -49,11 +49,11 @@ are executed on the `pass` dataset.
        │ LaboratoryTestPerformed                                          │
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
      ⋮
-    26 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
-    27 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    26 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    27 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
 
 In an eCQM, one of the very first things we want to do is filter by a
@@ -97,70 +97,75 @@ define "Pap Test with Results":
        │ PapTestWithResults                                               │
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
      ⋮
-    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
-    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
 
-Most CQL queries on the QDM involve date/time interval calculations. These
-can be directly supported in our dialect.
+Most CQL queries on the QDM involve date/time interval calculations.
+These can be directly supported in our dialect.
 
 ```CQL
 parameter "Measurement Period" Interval<DateTime>
 ```
 
-    @define MeasurePeriod = period("2019-01-01", "2020-01-01")
+    @define MeasurePeriod = interval("[2019-01-01..2020-01-01)")
 
     @query db MeasurePeriod
     #=>
-    │ MeasurePeriod                              │
-    ┼────────────────────────────────────────────┼
-    │ 2019-01-01T00:00:00 to 2020-01-01T00:00:00 │
+    │ MeasurePeriod                        │
+    ┼──────────────────────────────────────┼
+    │ 2019-01-01..2020-01-01 (closed–open) │
     =#
 
 ```CQL
 define "Pap Test Within 3 Years":
         "Pap Test with Results" PapTest
-                where PapTest.relevantPeriod 3 years or less 
+                where PapTest.relevantPeriod 3 years or less
                        before end of "Measurement Period"
 ```
 
+The most literal translation of this would use `Date` arithmetic, taking
+the something equivalent could be done directly using `Date` arithmetic.
+Here we're assuming an `>` is appropriate since the `MeasurePeriod` is
+an open interval on the right.
+
     @define PapTestWithin3Years =
           PapTestWithResults.
-          filter(relevantPeriod.end > MeasurePeriod.end - 3years)
+          filter(relevantPeriod.start >
+                 MeasurePeriod.end - 3years)
 
     @query db pass.QDM.PapTestWithin3Years
     #=>
        │ PapTestWithin3Years                                              │
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
      ⋮
-    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
-    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
 
-Alternatively, developing a higher-level vocabulary about intervals
-might be a bit easier to work with.
+For some cases, similar logic could be expressed with a higher-level
+vocabularly, including `during`. For example, a combinator
+`and_previous` could take an interval and expand it on the left.
+The following would be equivalent assuming the duration of the
+`MeasurePeriod` is one year.
 
-    @define PapTestWithin3Years =
-          PapTestWithResults.
-          filter(relevantPeriod.during(
-                    MeasurePeriod.and_previous(3years)))
-
-    @query db pass.QDM.PapTestWithin3Years
+    @query db pass.QDM.
+        PapTestWithResults.
+        filter(relevantPeriod.during(
+                  MeasurePeriod.and_previous(2years)))
     #=>
-       │ PapTestWithin3Years                                              │
+       │ PapTestWithResults                                               │
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10 to 20…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10 to 20…│
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
      ⋮
-    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25 to 20…│
-    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25 to 20…│
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
-
-

@@ -1,86 +1,59 @@
-# Many query operations involve date intervals. We can't use native
-# Julia range object since it's a vector, and vectors are lifted to a
-# plural value rather than treated as a tuple. That said, we could
-# create a custom type, `DateTimePeriod`, lifted to combinators. This
-# sort of interval is inclusive of stoppoints.
+# Many query operations involve date intervals. We use Julia's
+# ``IntervalSets`` library to implement these. Unfortunately,
+# it doesn't have a DWIM content-aware parsing library.
 
-struct DateTimePeriod
-    start_time::DateTime
-    stop_time::DateTime
+function make_interval(s::String)
+    @assert length(s) > 2
+    @assert s[1] in ('(', '[')
+    @assert s[end] in (')', ']')
+    @assert contains(s, "..")
+    lin = s[1] == '(' ? :open : :closed
+    rin = s[end] == ')' ? :open : :closed
+    (lhs, rhs) = [strip(z) for z in split(s[2:end-1], "..")]
+    if 'T' in lhs
+        @assert 'T' in rhs
+        lhs = parse(DateTime, lhs)
+        rhs = parse(DateTime, rhs)
+    elseif '-' in lhs
+        @assert '-' in rhs
+        lhs = parse(Date, lhs)
+        rhs = parse(Date, rhs)
+    elseif '.' in lhs
+        @assert '.' in rhs
+        lhs = parse(Float64, lhs)
+        rhs = parse(Float64, rhs)
+    else
+        lhs = parse(Int64, lhs)
+        rhs = parse(Int64, rhs)
+    end
+    return Interval{lin,rin}(lhs, rhs)
 end
 
-Base.show(io::IO, i::DateTimePeriod) =
-    print(io, "$(i.start_time) to $(i.stop_time)")
+translate(mod::Module, ::Val{:interval}, args::Tuple{Any,Vararg{Any}}) =
+    make_interval(args...)
 
-DateTimePeriod(start_time::String, stop_time::String) =
-    DateTimePeriod(DateTime(start_time), DateTime(stop_time))
-translate(mod::Module, ::Val{:period}, args::Tuple{Any, Any}) =
-    DateTimePeriod.(translate.(Ref(mod), args)...)
+# At this time DataKnots does not automatically treat structs
+# as fields where lookups happen.
 
-Lift(::Type{DateTimePeriod}) =
-    DispatchByType(DateTimePeriod => It,
-                   DateTime => DateTimePeriod.(It, It),
-                   String => DateTimePeriod.(DateTime.(It), DateTime.(It))) >>
-    Label(:period)
-translate(::Module, ::Val{:period}) = Lift(DateTimePeriod)
-
-lookup(ity::Type{DateTimePeriod}, name::Symbol) =
-    if name in (:start_time, :stop_time)
-        lift(getfield, name) |> designate(ity, DateTime)
-    elseif name in (:start, :startTime)
-        lift(getfield, :start_time) |> designate(ity, DateTime)
-    elseif name in (:stop, :end, :stopTime, :endTime)
-        lift(getfield, :stop_time) |> designate(ity, DateTime)
+lookup(ity::Type{Interval{L,R,T}}, name::Symbol) where {L,R,T} =
+    if name in (:right, :left)
+        lift(getfield, name) |> designate(ity, T)
+    elseif name in (:start, :begin)
+        lift(getfield, :left) |> designate(ity, T)
+    elseif name in (:finish, :end)
+        lift(getfield, :right) |> designate(ity, T)
     end
 
-# We define `includes` to mean that a date falls within a date interval
-# inclusively, or that one interval is completely subsumed by another.
+# To know if one time interval is within another, we use `issubset`
+# passing it the current context to implement includes and during.
 
-includes(period::DateTimePeriod, val::String) =
-    includes(period, DateTime(val))
-
-includes(period::DateTimePeriod, val::DateTime) =
-    period.stop_time >= val >= period.start_time
-
-includes(period::DateTimePeriod, val::DateTimePeriod) =
-   (val.start_time >= period.start_time) &&
-   (period.stop_time >= val.stop_time)
-
-# we define 
-
-and_previous(init::DateTime, len) =
-    DateTimePeriod(init - len, init)
-and_subsequent(init::DateTime, len) =
-    DateTimePeriod(init, init + len)
-and_previous(di::DateTimePeriod, len) =
-    DateTimePeriod(di.start_time - len, di.stop_time)
-and_subsequent(di::DateTimePeriod, len) =
-    DateTimePeriod(di.start_time, di.stop_time + len)
-
-"""
-X >> Includes(Y)
-This combinator is true if the interval of `Y` is completely included
-in the interval for `X`.  That is, if the starting point of `Y` is
-greater than or equal to the starting point of `X`, and also if the
-ending point of `Y` is less than or equal to the stoping point of `X`.
-This combinator accepts a `DateTimePeriod` for its arguments, but also
-any object that has `StartDate` and `EndDate` defined.
-"""
-Includes(Y) = includes.(It, Y)
+Includes(Y) = issubset.(Y, It)
 translate(mod::Module, ::Val{:includes}, args::Tuple{Any}) =
     Includes(translate.(Ref(mod), args)...)
 
-During(Y) = includes.(Y, It)
+During(Y) = issubset.(It, Y)
 translate(mod::Module, ::Val{:during}, args::Tuple{Any}) =
     During(translate.(Ref(mod), args)...)
-
-AndPrevious(Y) = and_previous.(It >> DateTimePeriod, Y)
-translate(mod::Module, ::Val{:and_previous}, args::Tuple{Any}) =
-    AndPrevious(translate.(Ref(mod), args)...)
-
-AndSubsequent(Y) = and_subsequent.(It >> DateTimePeriod, Y)
-translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
-    AndSubsequent(translate.(Ref(mod), args)...)
 
 # In macros, which wish to write things like `90days`. For Julia
 # this interpreted as "90 * days", hence we just need to make "days"
@@ -89,3 +62,18 @@ translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
 translate(::Module, ::Val{:days}) = Dates.Day(1)
 translate(::Module, ::Val{:years}) = Dates.Year(1)
 translate(::Module, ::Val{:months}) = Dates.Month(1)
+
+# Sometimes we want to extend an interval on the right or
+# the left.
+
+and_subsequent(it::Interval{L,R,T}, val::Any) where {L,R,T} =
+    Interval{L,R,T}(it.left, it.right + val)
+AndSubsequent(X) = and_subsequent.(It, X)
+translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
+    AndSubsequent(translate.(Ref(mod), args)...)
+
+and_previous(it::Interval{L,R,T}, val::Any) where {L,R,T} =
+    Interval{L,R,T}(it.left - val, it.right)
+AndPrevious(X) = and_previous.(It, X)
+translate(mod::Module, ::Val{:and_previous}, args::Tuple{Any}) =
+    AndPrevious(translate.(Ref(mod), args)...)

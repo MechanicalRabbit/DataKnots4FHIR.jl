@@ -22,17 +22,6 @@ DataKnots.render_value(c::Coding) =
 DataKnots.render_value(s::Set{Coding}) =
    join([DataKnots.render_value(x) for x in s], "; ")
 
-# This is a temporary work-around to create a Set{Coding} from
-# a stream of Coding objects.
-
-function CodingSet(cr)::Set{Coding}
-    retval = Set{Coding}()
-    for k in eachindex(cr)
-        push!(retval, cr[k])
-    end
-    return retval
-end
-
 # This lets us build a ValueSet query that returns all system/code pairs
 # from a UMLS VSAC data source; which is packaged as an artfact.
 
@@ -61,7 +50,7 @@ matches(s::Set{Coding}, v::Vector{Coding}) =
 
 Matches(Test) =
     DispatchByType(Set{Coding} => It,
-                   Coding => CodingSet.(It),
+                   Coding => Set{Coding}.(It),
                    Any => It.code) >>
     matches.(It, Test)
 

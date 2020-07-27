@@ -10,8 +10,7 @@ system_code(url) = Dict{String, String}(
     "http://unitsofmeasure.org" => "UCUM")[url]
 
 CodableConcept =
-    CodingSet.(
-        It.coding >> Coding.(system_code.(It.system), It.code))
+    Set{Coding}.(It.coding >> Coding.(system_code.(It.system), It.code))
 
 QDM_LabTest =
     It.entry.resource >>
@@ -23,7 +22,7 @@ QDM_LabTest =
       :value => It.valueCodeableConcept >> CodableConcept >> Is1to1,
       :relevantPeriod =>
           DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
-          DateTimePeriod.(It, It)
+          ClosedInterval{DateTime}.(It, It)
     ) >> Label(:LaboratoryTestPerformed)
 
 QDM = FHIRProfile(:STU3, "Bundle") >>
