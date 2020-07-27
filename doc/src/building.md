@@ -149,16 +149,34 @@ an open interval on the right.
     20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
 
-For some cases, similar logic could be expressed with a higher-level
-vocabularly, including `during`. For example, a combinator
-`and_previous` could take an interval and expand it on the left.
-The following would be equivalent assuming the duration of the
-`MeasurePeriod` is one year.
+Similar but not identical logic could be expressed with a higher-level
+vocabularly: a combinator `during` could check if one interval lies
+within another; and a combinator `and_previous` could adjust the left
+endpoint of an interval. In the case where the `MeasurePeriod` is one
+year, then the following query would be equivalent.
 
     @query db pass.QDM.
         PapTestWithResults.
         filter(relevantPeriod.during(
                   MeasurePeriod.and_previous(2years)))
+    #=>
+       │ PapTestWithResults                                               │
+       │ code             value                 relevantPeriod            │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
+     ⋮
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
+    =#
+
+Alternatively, we could think about this same problem as creating a new
+interval that spans from 3 years before the MeasurePeriod ending date.
+
+    @query db pass.QDM.
+               PapTestWithResults.
+               filter(relevantPeriod.during(
+                         interval(3years, MeasurePeriod.end)))
     #=>
        │ PapTestWithResults                                               │
        │ code             value                 relevantPeriod            │

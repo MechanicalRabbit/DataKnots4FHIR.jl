@@ -29,8 +29,31 @@ function make_interval(s::String)
     return Interval{lin,rin}(lhs, rhs)
 end
 
+make_interval(lhs::Union{Date, DateTime},
+              span::Union{Year, Month, Day, Week}) =
+    ClosedInterval(lhs, lhs + span)
+
+make_interval(span::Union{Year, Month, Day, Week},
+              rhs::Union{Date, DateTime}) =
+    ClosedInterval(rhs - span, rhs)
+
+make_interval(lhs::String, span::Union{Year, Month, Day, Week}) =
+    make_interval('T' in lhs ? DateTime(lhs) : Date(lhs), span)
+
+make_interval(span::Union{Year, Month, Day, Week}, rhs::String) =
+    make_interval(span, 'T' in rhs ? DateTime(rhs) : Date(rhs))
+
+translate(mod::Module, ::Val{:interval}, args::Tuple{Any}) =
+    make_interval.(args...)
+
 translate(mod::Module, ::Val{:interval}, args::Tuple{Any,Vararg{Any}}) =
-    make_interval(args...)
+    make_interval.(translate.(Ref(mod), args)...)
+
+set_bounds(i::Interval{L,R,T}, lhs::Symbol, rhs::Symbol) where {L,R,T} =
+    Interval{lhs,rhs,T}(i.left, i.right)
+
+translate(mod::Module, ::Val{:bounds}, args::Tuple{Any, Any}) =
+    set_bounds.(It, args...)
 
 # At this time DataKnots does not automatically treat structs
 # as fields where lookups happen.
@@ -61,6 +84,7 @@ translate(mod::Module, ::Val{:during}, args::Tuple{Any}) =
 
 translate(::Module, ::Val{:days}) = Dates.Day(1)
 translate(::Module, ::Val{:years}) = Dates.Year(1)
+translate(::Module, ::Val{:weeks}) = Dates.Week(1)
 translate(::Module, ::Val{:months}) = Dates.Month(1)
 
 # Sometimes we want to extend an interval on the right or
