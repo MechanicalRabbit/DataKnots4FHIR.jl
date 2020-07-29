@@ -339,9 +339,10 @@ function FHIRProfile(standard::Symbol, profile)
             Label(ident)
     end
     meta = registry.resource[ident]
+    resourceFilter = (ident == :Resource) ? It :
+        Filter((It.resourceType >> IsString) .== get(meta[It.id]))
     return registry.profile[ident] =
-        IsDict >>
-        Filter((It.resourceType >> IsString) .== get(meta[It.id])) >>
+        IsDict >> resourceFilter >>
         build_profile(Context(standard), get(meta[It.id]),
                       meta[It.elements], :resource) >>
         Label(ident)

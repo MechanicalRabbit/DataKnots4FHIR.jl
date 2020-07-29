@@ -14,7 +14,7 @@ macro define(expr)
     @assert Meta.isexpr(call, :call, 1)
     name = Expr(:quote, call.args[1])
     return :(DataKnots.translate(mod::Module, ::Val{$(name)}, ::Tuple{}) =
-                 $(body) >> Label($(name)))
+                 $(body))
 end
 
 # For the QDM we deal with symbols having spaces...
