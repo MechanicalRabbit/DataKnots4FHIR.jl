@@ -45,14 +45,21 @@ end
 # The matches() operator lets you verify if a `Coding` matches
 # what is in a given value set.
 
-matches(s::Set{Coding}, v::Vector{Coding}) =
-    !isempty(intersect(s,v))
+function matches(s::Set{Coding}, vs::Vararg{Vector{Coding}})
+   for v in vs
+       if isempty(intersect(s,v))
+           continue
+       end
+       return true
+   end
+   return false
+end
 
-Matches(Test) =
+Matches(Tests...) =
     DispatchByType(Set{Coding} => It,
                    Coding => Set{Coding}.(It),
                    Any => It.code) >>
-    matches.(It, Test)
+    matches.(It, Tests...)
 
 translate(mod::Module, ::Val{:matches}, args::Tuple{Any,Vararg{Any}}) =
     Matches(translate.(Ref(mod), args)...)

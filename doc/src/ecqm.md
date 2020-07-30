@@ -126,3 +126,17 @@ For now, let's do only a small query...
     19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
     20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
+
+For now, let's do only a small query...
+
+    @query db CMS124_pass.QDM.QualifyingEncounters
+    #=>
+       │ QualifyingEncounters                                           │
+       │ code                  relevantPeriod                           │
+    ───┼────────────────────────────────────────────────────────────────┼
+     1 │ 439740005 [SNOMEDCT]  2019-02-20T12:52:10..2019-02-20T13:07:10 │
+     2 │ 439740005 [SNOMEDCT]  2019-07-18T22:14:44..2019-07-18T22:29:44 │
+     ⋮
+    15 │ 439740005 [SNOMEDCT]  2019-05-04T09:05:14..2019-05-04T09:20:14 │
+    16 │ 439740005 [SNOMEDCT]  2019-02-24T14:02:25..2019-02-24T14:17:25 │
+    =#

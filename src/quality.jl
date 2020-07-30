@@ -25,9 +25,23 @@ QDM_LabTest =
           ClosedInterval{DateTime}.(It, It)
     ) >> Label(:LaboratoryTestPerformed)
 
+QDM_Encounter =
+    It.entry.resource >>
+    FHIRProfile(:STU3, "Encounter") >>
+    Filter(It.status .∈  ["finished"]) >>
+    Record(
+     :code => It.type >> CodableConcept >> Is1to1,
+     :relevantPeriod =>
+         ClosedInterval{DateTime}.(
+             DateTime.(It.period.start, UTC) >> Is1to1,
+             DateTime.(It.period.end, UTC) >> Is1to1),
+    ) >> Label(:EncounterPerformed)
+
+
 QDM = FHIRProfile(:STU3, "Bundle") >>
       Record(
-         QDM_LabTest
+         QDM_LabTest,
+         QDM_Encounter
       )
 
 @define QDM = $QDM
