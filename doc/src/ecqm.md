@@ -103,3 +103,26 @@ Quality Data Model (QDM).
     26 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
     27 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
+
+Let's load the eCQM.
+
+    include("cms124v7.jl")
+    #-> ⋮
+
+To run a measure, we'll need to have a measure period.
+
+    @define MeasurePeriod = interval("[2019-01-01..2020-01-01)")
+
+For now, let's do only a small query...
+
+    @query db CMS124_pass.QDM.PapTestWithin3Years
+    #=>
+       │ PapTestWithin3Years                                              │
+       │ code             value                 relevantPeriod            │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
+     ⋮
+    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
+    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
+    =#
