@@ -21,6 +21,7 @@ export
     FHIRField,
     Coding,
     DateTimePeriod,
+    years_between,
     @define,
     @valueset
 

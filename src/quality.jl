@@ -9,6 +9,18 @@ system_code(url) = Dict{String, String}(
     "http://www.nlm.nih.gov/research/umls/rxnorm" => "RXNORM",
     "http://unitsofmeasure.org" => "UCUM")[url]
 
+years_between(lhs::Date, rhs::Date) =
+    year(lhs) - year(rhs) -
+     (month(lhs) > month(rhs) ? 0 :
+     (month(lhs) < month(rhs) ? 1 :
+     (day(lhs) >= day(rhs) ? 0 : 1)))
+
+years_between(lhs::DateTime, rhs::DateTime) =
+     years_between(Date(lhs), Date(rhs))
+
+#translate(mod::Module, ::Val{:years_between}, args::Tuple{Any, 2}) =
+#    years_between.(translate.(Ref(mod), args)...)
+
 CodableConcept =
     Set{Coding}.(It.coding >> Coding.(system_code.(It.system), It.code))
 
@@ -37,11 +49,20 @@ QDM_Encounter =
              DateTime.(It.period.end, UTC) >> Is1to1),
     ) >> Label(:EncounterPerformed)
 
+QDM_PatientCharacteristicBirthdate =
+    #TODO: use patient-birthTime extension if possible
+    It.entry.resource >>
+    FHIRProfile(:STU3, "Patient") >> Is1to1 >>
+    Record(
+     :code => Set{Coding}([Coding(:LOINC, Symbol("21112-8"))]),
+     :birthDateTime => DateTime.(It.birthDate) >> Is1to1
+    ) >> Label(:PatientCharacteristicBirthdate)
 
 QDM = FHIRProfile(:STU3, "Bundle") >>
       Record(
-         QDM_LabTest,
-         QDM_Encounter
+            QDM_PatientCharacteristicBirthdate,
+            QDM_LabTest,
+            QDM_Encounter
       )
 
 @define QDM = $QDM
