@@ -19,8 +19,8 @@ using DataKnots4FHIR
 @valueset HPVTest = "2.16.840.1.113883.3.464.1003.110.12.1059"
 
 @define PapTestWithResults =
-            LaboratoryTestPerformed.
-                filter(code.matches(PapTest) && exists(value))
+          LaboratoryTestPerformed.
+            filter(code.matches(PapTest) && exists(value))
 
 @define PapTestWithin3Years =
           PapTestWithResults.
@@ -28,18 +28,17 @@ using DataKnots4FHIR
 
 @define QualifyingEncounters =
           EncounterPerformed.
-              filter(code.matches(
-                  OfficeVisit,
-                  PreventativeCareServices_EstablishedOfficeVisit18andUp,
-                  PreventativeCareServices_InitialOfficeVisit18andUp,
-                  HomeHealthcareServices) &&
-                   relevantPeriod.during(MeasurePeriod))
-
+            filter(relevantPeriod.during(MeasurePeriod) &&
+              code.matches(
+                OfficeVisit,
+                PreventativeCareServices_EstablishedOfficeVisit18andUp,
+                PreventativeCareServices_InitialOfficeVisit18andUp,
+                HomeHealthcareServices))
 
 @define PapTestWithin5Years =
-            given(birthDate => PatientCharacteristicBirthdate.birthDateTime,
-               PapTestWithResults.
-               filter(years_between(relevantPeriod.start, birthDate) >= 30 &&
-                      relevantPeriod.start > MeasurePeriod.finish - 5years))
-
+          let birthDate => PatientCharacteristicBirthdate.birthDateTime
+            PapTestWithResults.
+            filter(years_between(relevantPeriod.start, birthDate) >= 30 &&
+                   relevantPeriod.start > MeasurePeriod.finish - 5years)
+          end
 end
