@@ -30,18 +30,15 @@ function make_interval(s::String)
 end
 
 make_interval(lhs::Union{Date, DateTime},
-              span::Union{Year, Month, Day, Week}) =
-    ClosedInterval(lhs, lhs + span)
-
-make_interval(span::Union{Year, Month, Day, Week},
               rhs::Union{Date, DateTime}) =
-    ClosedInterval(rhs - span, rhs)
+    ClosedInterval(lhs, rhs)
+
+make_interval(lhs::Union{Date, DateTime},
+              span::Union{Year, Month, Day, Week}) =
+    ClosedInterval(lhs, lhs+span)
 
 make_interval(lhs::String, span::Union{Year, Month, Day, Week}) =
     make_interval('T' in lhs ? DateTime(lhs) : Date(lhs), span)
-
-make_interval(span::Union{Year, Month, Day, Week}, rhs::String) =
-    make_interval(span, 'T' in rhs ? DateTime(rhs) : Date(rhs))
 
 translate(mod::Module, ::Val{:interval}, args::Tuple{Any}) =
     make_interval.(args...)
@@ -70,13 +67,27 @@ lookup(ity::Type{Interval{L,R,T}}, name::Symbol) where {L,R,T} =
 # To know if one time interval is within another, we use `issubset`
 # passing it the current context to implement includes and during.
 
-Includes(Y) = issubset.(Y, It)
+during(lhs::Interval, rhs::Interval) = issubset(lhs, rhs)
+during(lhs::Union{Date, DateTime}, rhs::Interval) = lhs in rhs
+
+During(Y) = during.(It, Y)
+translate(mod::Module, ::Val{:during}, args::Tuple{Any}) =
+    During(translate.(Ref(mod), args)...)
+
+Includes(Y) = during.(Y, It)
 translate(mod::Module, ::Val{:includes}, args::Tuple{Any}) =
     Includes(translate.(Ref(mod), args)...)
 
-During(Y) = issubset.(It, Y)
-translate(mod::Module, ::Val{:during}, args::Tuple{Any}) =
-    During(translate.(Ref(mod), args)...)
+# Sometimes we're checking against a vector...
+
+during_any(lhs::Vector{Interval}, rhs::Interval) =
+    any((issubset(item, rhs) for item in lhs))
+during_any(lhs::Union{Vector{DateTime}, Vector{Date}}, rhs::Interval) =
+    any((item in rhs for item in lhs))
+
+IncludesAny(Y) = during_any.(Y, It)
+translate(mod::Module, ::Val{:includes_any}, args::Tuple{Any}) =
+    IncludesAny(translate.(Ref(mod), args)...)
 
 # In macros, which wish to write things like `90days`. For Julia
 # this interpreted as "90 * days", hence we just need to make "days"
@@ -92,12 +103,18 @@ translate(::Module, ::Val{:months}) = Dates.Month(1)
 
 and_subsequent(it::Interval{L,R,T}, val::Any) where {L,R,T} =
     Interval{L,R,T}(it.left, it.right + val)
+and_subsequent(it::Union{Date, DateTime},
+               span::Union{Year, Month, Day, Week}) =
+    ClosedInterval(it, it + span)
 AndSubsequent(X) = and_subsequent.(It, X)
 translate(mod::Module, ::Val{:and_subsequent}, args::Tuple{Any}) =
     AndSubsequent(translate.(Ref(mod), args)...)
 
 and_previous(it::Interval{L,R,T}, val::Any) where {L,R,T} =
     Interval{L,R,T}(it.left - val, it.right)
+and_previous(it::Union{Date, DateTime},
+             span::Union{Year, Month, Day, Week}) =
+    ClosedInterval(it - span, it)
 AndPrevious(X) = and_previous.(It, X)
 translate(mod::Module, ::Val{:and_previous}, args::Tuple{Any}) =
     AndPrevious(translate.(Ref(mod), args)...)

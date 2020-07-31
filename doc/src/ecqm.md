@@ -49,15 +49,15 @@ are in the numerator of the eCQM ("pass"), and 10 that are not ("fail").
 We can then run any sort of `DataKnot` on these datasets. However, they
 cannot be directly queried because they are `Dict` structures.
 
-    @query db count(CMS104_pass)
+    @query db count(CMS124_pass)
     #=>
     ┼────┼
     │ 10 │
     =#
 
-    @query db CMS104_pass
+    @query db CMS124_pass
     #=>
-       │ CMS104_pass                                                      │
+       │ CMS124_pass                                                      │
     ───┼──────────────────────────────────────────────────────────────────┼
      1 │ Dict{String,Any}(\"entry\"=>Any[Dict{String,Any}(\"fullUrl\"=>\"…│
      2 │ Dict{String,Any}(\"entry\"=>Any[Dict{String,Any}(\"fullUrl\"=>\"…│
@@ -75,18 +75,18 @@ Moreover, it is not optimial for representing quality measures.
     @define bundle() = fhir_profile("STU3", "Bundle")
     @define resource() = entry.resource.fhir_profile("STU3", "Resource")
 
-    @query db CMS104_pass.bundle().{
+    @query db CMS124_pass.bundle().{
                 resource().group(resourceType).label(Resource).
                 {resourceType, count(Resource).label(count)}}
     #=>
        │ Bundle                                                           │
        │ Resource{resourceType,count}                                     │
     ───┼──────────────────────────────────────────────────────────────────┼
-     1 │ Claim, 63; Condition, 32; Encounter, 41; ExplanationOfBenefit, 4…│
-     2 │ Claim, 17; Condition, 4; Encounter, 13; ExplanationOfBenefit, 13…│
+     1 │ Claim, 9; Condition, 1; Encounter, 9; ExplanationOfBenefit, 9; I…│
+     2 │ Claim, 9; Condition, 1; Encounter, 9; ExplanationOfBenefit, 9; I…│
      ⋮
-     9 │ Claim, 45; Condition, 19; Encounter, 29; ExplanationOfBenefit, 2…│
-    10 │ Claim, 53; Condition, 25; Encounter, 34; ExplanationOfBenefit, 3…│
+     9 │ Claim, 9; Condition, 1; Encounter, 9; ExplanationOfBenefit, 9; I…│
+    10 │ Claim, 9; Condition, 1; Encounter, 9; ExplanationOfBenefit, 9; I…│
     =#
 
 We can futher unpack these structures to something similar to the
@@ -109,11 +109,12 @@ Let's load the eCQM.
     include("cms124v7.jl")
     #-> ⋮
 
-To run a measure, we'll need to have a measure period.
+To run a measure, we'll need to have a measure period; note that we want
+it to be an open interval on the right endpoint.
 
     @define MeasurePeriod = interval("[2019-01-01..2020-01-01)")
 
-For now, let's do only a small query...
+Let's unit-test a few queries to see that they return what we wish.
 
     @query db CMS124_pass.QDM.PapTestWithin3Years
     #=>
@@ -127,8 +128,6 @@ For now, let's do only a small query...
     20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
 
-For now, let's do only a small query...
-
     @query db CMS124_pass.QDM.QualifyingEncounters
     #=>
        │ QualifyingEncounters                                           │
@@ -141,8 +140,6 @@ For now, let's do only a small query...
     16 │ 439740005 [SNOMEDCT]  2019-02-24T14:02:25..2019-02-24T14:17:25 │
     =#
 
-Let's look at PapTestWithin5Years
-
     @query db CMS124_pass.QDM.PapTestWithin5Years
     #=>
        │ PapTestWithin5Years                                              │
@@ -154,3 +151,12 @@ Let's look at PapTestWithin5Years
     19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
     20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
     =#
+
+    @query db CMS124_pass.QDM.PapTestWithHPVWithin5Years
+    #=>
+    │ PapTestWithHPVWithin5Years  │
+    │ code  value  relevantPeriod │
+    ┼─────────────────────────────┼
+    (empty)
+    =#
+
