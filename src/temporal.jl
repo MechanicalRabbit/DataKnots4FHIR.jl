@@ -78,6 +78,17 @@ Includes(Y) = during.(Y, It)
 translate(mod::Module, ::Val{:includes}, args::Tuple{Any}) =
     Includes(translate.(Ref(mod), args)...)
 
+overlaps(lhs::Interval, rhs::Interval) = isempty(intersect(lhs, rhs))
+overlaps(lhs::ClosedInterval{DateTime},
+         rhs::Interval{L, R, Date}) where L where R =
+    let this = ClosedInterval{Date}(Date(lhs.left), Date(lhs.right))
+        isempty(intersect(this, rhs))
+    end
+
+Overlaps(Y) = overlaps.(It, Y)
+translate(mod::Module, ::Val{:overlaps}, args::Tuple{Any}) =
+    Overlaps(translate.(Ref(mod), args)...)
+
 # Sometimes we're checking against a vector...
 
 during_any(lhs::Vector{Interval}, rhs::Interval) =

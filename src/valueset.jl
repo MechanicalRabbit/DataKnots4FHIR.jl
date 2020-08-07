@@ -35,6 +35,18 @@ function ValueSet(oid::String)::Vector{Coding}
     return codings
 end
 
+function ValueSet(system::String, codes::Vararg{String})
+    codings = Coding[]
+    for code in codes
+        coding = Coding(Symbol(system), Symbol(code))
+        push!(codings, coding)
+    end
+    return codings
+end
+
+translate(mod::Module, ::Val{:valueset}, args::Tuple{String,Vararg{String}}) =
+     Lift(ValueSet(args...))
+
 macro valueset(expr)
     @assert Meta.isexpr(expr, :(=), 2)
     name = Expr(:quote, expr.args[1])

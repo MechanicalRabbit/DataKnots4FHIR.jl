@@ -112,7 +112,7 @@ Let's load the eCQM.
 To run a measure, we'll need to have a measure period; note that we want
 it to be an open interval on the right endpoint.
 
-    @define MeasurePeriod = interval("[2019-01-01..2020-01-01)")
+    @define MeasurePeriod = interval("[2018-01-01..2019-01-01)")
 
 Let's unit-test a few queries to see that they return what we wish.
 
@@ -122,22 +122,22 @@ Let's unit-test a few queries to see that they return what we wish.
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
      1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-08-22T22:14:44..2018…│
      ⋮
-    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
-    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
+     9 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-05-09T09:05:14..2018…│
+    10 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
     =#
 
     @query db CMS124_pass.QDM.QualifyingEncounters
     #=>
-       │ QualifyingEncounters                                           │
-       │ code                  relevantPeriod                           │
-    ───┼────────────────────────────────────────────────────────────────┼
-     1 │ 439740005 [SNOMEDCT]  2019-02-20T12:52:10..2019-02-20T13:07:10 │
-     2 │ 439740005 [SNOMEDCT]  2019-07-18T22:14:44..2019-07-18T22:29:44 │
+       │ QualifyingEncounters                                             │
+       │ code                  dischargeDisposition  relevantPeriod       │
+    ───┼──────────────────────────────────────────────────────────────────┼
+     1 │ 439740005 [SNOMEDCT]  439740005 [SNOMEDCT]  2018-03-27T12:52:10.…│
+     2 │ 439740005 [SNOMEDCT]  439740005 [SNOMEDCT]  2018-08-22T22:14:44.…│
      ⋮
-    15 │ 439740005 [SNOMEDCT]  2019-05-04T09:05:14..2019-05-04T09:20:14 │
-    16 │ 439740005 [SNOMEDCT]  2019-02-24T14:02:25..2019-02-24T14:17:25 │
+    20 │ 439740005 [SNOMEDCT]  439740005 [SNOMEDCT]  2018-05-09T09:05:14.…│
+    21 │ 439740005 [SNOMEDCT]  439740005 [SNOMEDCT]  2018-03-01T14:02:25.…│
     =#
 
     @query db CMS124_pass.QDM.PapTestWithin5Years
@@ -146,17 +146,36 @@ Let's unit-test a few queries to see that they return what we wish.
        │ code             value                 relevantPeriod            │
     ───┼──────────────────────────────────────────────────────────────────┼
      1 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-27T12:52:10..2018…│
-     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-20T12:52:10..2019…│
+     2 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-08-22T22:14:44..2018…│
      ⋮
-    19 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
-    20 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2019-02-24T14:02:25..2019…│
+     9 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-05-09T09:05:14..2018…│
+    10 │ 10524-7 [LOINC]  445528004 [SNOMEDCT]  2018-03-01T14:02:25..2018…│
     =#
 
-    @query db CMS124_pass.QDM.PapTestWithHPVWithin5Years
+For the expected failures, they are `false` for the numerator.
+
+    @query db CMS124_fail.QDM.{Numerator, Denominator, DenominatorExclusions}
     #=>
-    │ PapTestWithHPVWithin5Years  │
-    │ code  value  relevantPeriod │
-    ┼─────────────────────────────┼
-    (empty)
+       │ QDM                                           │
+       │ Numerator  Denominator  DenominatorExclusions │
+    ───┼───────────────────────────────────────────────┼
+     1 │     false         true                  false │
+     2 │     false         true                  false │
+     ⋮
+     9 │     false         true                  false │
+    10 │     false         true                  false │
     =#
 
+For the expected numerator passes, we get all `true`.
+
+    @query db CMS124_pass.QDM.{Numerator, Denominator, DenominatorExclusions}
+    #=>
+       │ QDM                                           │
+       │ Numerator  Denominator  DenominatorExclusions │
+    ───┼───────────────────────────────────────────────┼
+     1 │      true         true                  false │
+     2 │      true         true                  false │
+     ⋮
+     9 │      true         true                  false │
+    10 │      true         true                  false │
+    =#
