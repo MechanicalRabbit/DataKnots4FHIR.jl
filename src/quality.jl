@@ -34,7 +34,7 @@ QDM_LabTest =
                           "preliminary"]) >>
     Record(
       :code => It.code >> CodableConcept >> Is1to1,
-      :value => It.valueCodeableConcept >> CodableConcept >> Is1to1,
+      :value => It.valueCodeableConcept >> CodableConcept >> Is0to1,
       :relevantPeriod =>
           DateTime.(It.effectiveDateTime, UTC) >> Is1to1 >>
           ClosedInterval{DateTime}.(It, It)
