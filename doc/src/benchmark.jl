@@ -5,8 +5,6 @@ using IntervalSets
 using JSON
 using Pkg.Artifacts
 using BenchmarkTools
-BenchmarkTools.DEFAULT_PARAMETERS.samples = 5
-BenchmarkTools.DEFAULT_PARAMETERS.seconds = 60
 
 folder = joinpath(artifact"synthea-79", "synthea-79", "CMS124v7", "numerator")
 ten = []
@@ -24,17 +22,15 @@ print("assemble query...")
 print("compiling........")
 @time p(db)
 print("again............")
-@btime p(db)
+@btime p(db) samples=5
 data = []
-chunk = [] # let's do 50 patients blocks
-append!(chunk, ten)
-append!(chunk, ten)
-append!(chunk, ten)
-append!(chunk, ten)
-append!(chunk, ten)
+chunk = [] # let's do 25000 patients blocks
+for x in 1:2500
+   append!(chunk, ten)
+end
 while true
     global data
     print("sz=$(length(data))")
-    @btime p(convert(DataKnot, (bundle=data,)))
+    @btime p(convert(DataKnot, (bundle=data,))) samples=5
     append!(data, chunk)
 end
