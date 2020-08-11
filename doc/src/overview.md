@@ -197,7 +197,7 @@ dictionaries.
 We could let DataKnots know that `name` is a vector of dictionaries
 using the ``Is`` combinator as follows.
 
-    @query resource name.is(Vector).is(Dict)
+    @query resource name.is(Vector{Any}).is(Dict{String,Any})
     #=>
       │ name                                                             …
     ──┼──────────────────────────────────────────────────────────────────…
@@ -210,7 +210,7 @@ Then, we could return the list of ``family`` names; except this has its
 own problem. The second entry provides a nickname, and the family name
 is optional, shown here as missing, rather than being omitted.
 
-    @query resource name.is(Vector).is(Dict).family
+    @query resource name.is(Vector{Any}).is(Dict{String,Any}).family
     #=>
       │ family   │
     ──┼──────────┼
@@ -219,7 +219,8 @@ is optional, shown here as missing, rather than being omitted.
     3 │ Windsor  │
     =#
 
-    show(as=:shape, @query resource name.is(Vector).is(Dict).family)
+    show(as=:shape,
+      @query resource name.is(Vector{Any}).is(Dict{String,Any}).family)
     #=>
     3-element DataKnot:
       family  0:N × Any
@@ -229,7 +230,7 @@ This can be addressed by specifying the datatype of ``family`` is
 ``Union{String, Missing}``. In this case, DataKnots knows that the
 ``missing`` value should be omitted in the query result.
 
-    @query resource name.is(Vector).is(Dict).family.
+    @query resource name.is(Vector{Any}).is(Dict{String,Any}).family.
                          is(Union{String, Missing})
     #=>
       │ family   │

@@ -376,7 +376,7 @@ function FHIRField(standard::Symbol, fieldName::String)
                  IsOptDict >> Get(:id) >> IsOptString,
        :extension => It >> Get(:_) >> Get(fieldName) >>
                  IsOptDict >> It.extension >>
-                 coalesce.(It, Ref([])) >> Is(Vector) >> Extension
+                 coalesce.(It, Ref([])) >> IsVector >> Extension
     ) >> Label(fieldName)
 end
 
