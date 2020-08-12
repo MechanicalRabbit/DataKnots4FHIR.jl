@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Profile · DataKnots4FHIR.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">DataKnots4FHIR.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../overview/">Overview</a></li><li class="is-active"><a class="tocitem" href>Profile</a><ul class="internal"><li><a class="tocitem" href="#Using-FHIR-Profiles"><span>Using FHIR Profiles</span></a></li></ul></li><li><a class="tocitem" href="../ecqm/">An eCQM</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Profile</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Profile</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/rbt-lang/DataKnots4FHIR.jl/blob/master/doc/src/profile.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h2 id="Using-FHIR-Profiles"><a class="docs-heading-anchor" href="#Using-FHIR-Profiles">Using FHIR Profiles</a><a id="Using-FHIR-Profiles-1"></a><a class="docs-heading-anchor-permalink" href="#Using-FHIR-Profiles" title="Permalink"></a></h2><p>This package demonstrates how to query bundles of FHIR using DataKnots with a 116 person synthetic dataset. First we import the relevant  libraries we&#39;ll be using.</p><pre><code class="language-julia">using JSON
+using Dates
+using DataKnots
+using DataKnots4FHIR
+using Pkg.Artifacts</code></pre><p>Next let&#39;s build an in-memory database that holds our synthetic patient bundles. Note that the downloaded data includes two additional bundles, for providers and hospitals.</p><pre><code class="language-julia">datapath = joinpath(artifact&quot;synthea-116&quot;, &quot;synthea-116&quot;);
+
+items = []
+for fname in readdir(datapath)
+    item = JSON.parsefile(joinpath(datapath, fname))
+    push!(items, item)
+end
+
+db = convert(DataKnot, (bundle=items, ) )
+#=&gt;
+│ bundle                                                             …
+┼────────────────────────────────────────────────────────────────────…
+│ Dict{String,Any}(\&quot;entry\&quot;=&gt;Any[Dict{String,Any}(\&quot;fullUrl\&quot;=&gt;\&quot;urn…
+=#
+
+@query db count(bundle)
+#=&gt;
+┼─────┼
+│ 118 │
+=#</code></pre><p>Then, we could define some FHIR profiles to work with it. For example, we could ask, &quot;What are the total number of <span>$Patient$</span> resources?&quot;</p><pre><code class="language-julia">Bundle = FHIRProfile(:R4, :Bundle)
+Patient = FHIRProfile(:R4, :Patient)
+Observation = FHIRProfile(:R4, :Observation)
+Condition = FHIRProfile(:R4, :Condition)
+
+@query db count(bundle.$Bundle.entry.resource.$Patient) 
+#=&gt;
+┼─────┼
+│ 116 │
+=#</code></pre><p>Let&#39;s refine our bundle to pull out the things we&#39;re interested in seeing. First, we&#39;re only interested in bundles that have a patient entry in them. Then, let&#39;s group patents and observations and see how many observations we have for each patient.</p><pre><code class="language-julia">Bundle =
+   It.bundle &gt;&gt;
+   FHIRProfile(:R4, :Bundle) &gt;&gt;
+   Filter(Exists(It.entry.resource &gt;&gt; Patient)) &gt;&gt;
+   Record(
+    :patient =&gt; It.entry.resource &gt;&gt; Patient &gt;&gt; Is0to1,
+    :condition =&gt; It.entry.resource &gt;&gt; Condition,
+    :observation =&gt; It.entry.resource &gt;&gt; Observation )
+
+@query db $Bundle{patient.id, no_obs =&gt; count(observation),
+                              no_cnd =&gt; count(condition)}
+#=&gt;
+    │ Bundle                                               │
+    │ id                                    no_obs  no_cnd │
+────┼──────────────────────────────────────────────────────┼
+  1 │ 31f1152b-6f91-4b0b-b7d3-67af683a7216     156       8 │
+  2 │ 6f882e03-5e1d-4c04-8507-29ddfc0548bb     123      13 │
+  ⋮
+116 │ e43e35c8-4ee6-4ad6-a195-a92afaeda66b      49      10 │
+=#</code></pre><p>Since we&#39;re unfamilar with this database, we could see what sort of observations were made. It seems not very much variety, but this is synthetic data.</p><pre><code class="language-julia">@query db begin
+    $Bundle.observation.valueCodeableConcept
+    group(coding{code, display})
+    {coding, count=&gt;count(valueCodeableConcept)}
+end
+#=&gt;
+   │ coding{code,display}                                count │
+───┼───────────────────────────────────────────────────────────┼
+ 1 │ 10828004, Positive (qualifier value)                   10 │
+ 2 │ 109838007, Overlapping malignant neoplasm of colon      1 │
+⋮
+34 │ 87433001, Pulmonary emphysema (disorder)                1 │
+35 │ 95281009, Sudden Cardiac Death                          3 │
+=#</code></pre><p>Let&#39;s see what sort of conditions are assigned.</p><pre><code class="language-julia">@query db begin
+           $Bundle.condition.code
+           group(coding{code, display})
+           {coding, count=&gt;count(code)}
+end
+#=&gt;
+    │ coding{code,display}                                      count │
+────┼─────────────────────────────────────────────────────────────────┼
+  1 │ 10509002, Acute bronchitis (disorder)                        57 │
+  2 │ 109838007, Overlapping malignant neoplasm of colon            1 │
+  3 │ 124171000119105, Chronic intractable migraine without au…     4 │
+  ⋮
+124 │ 87628006, Bacterial infectious disease (disorder)             3 │
+125 │ 88805009, Chronic congestive heart failure (disorder)         1 │
+=#</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../overview/">« Overview</a><a class="docs-footer-nextpage" href="../ecqm/">An eCQM »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 12 August 2020 21:33">Wednesday 12 August 2020</span>. Using Julia version 1.5.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>

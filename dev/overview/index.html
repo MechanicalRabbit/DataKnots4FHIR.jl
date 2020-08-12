@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Overview · DataKnots4FHIR.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.11.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">DataKnots4FHIR.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li class="is-active"><a class="tocitem" href>Overview</a><ul class="internal"><li><a class="tocitem" href="#DataKnots4FHIR.jl"><span>DataKnots4FHIR.jl</span></a></li></ul></li><li><a class="tocitem" href="../profile/">Profile</a></li><li><a class="tocitem" href="../ecqm/">An eCQM</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Overview</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Overview</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/rbt-lang/DataKnots4FHIR.jl/blob/master/doc/src/overview.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h2 id="DataKnots4FHIR.jl"><a class="docs-heading-anchor" href="#DataKnots4FHIR.jl">DataKnots4FHIR.jl</a><a id="DataKnots4FHIR.jl-1"></a><a class="docs-heading-anchor-permalink" href="#DataKnots4FHIR.jl" title="Permalink"></a></h2><p>This package is an application of the DataKnots processing system to Health Level 7 (HL7) Fast Healthcare Interoperability Resources (FHIR). This project creates schema-driven DataKnot queries for each FHIR profile, giving convenient access to JSON encoded FHI.</p><h3 id="Quick-Start"><a class="docs-heading-anchor" href="#Quick-Start">Quick Start</a><a id="Quick-Start-1"></a><a class="docs-heading-anchor-permalink" href="#Quick-Start" title="Permalink"></a></h3><p>Let&#39;s start with an example FHIR resource encoded using JSON, <a href="https://www.hl7.org/fhir/R4/patient-example.json.html">example patient</a>. This resource could could be downloaded to a temporary file as follows.</p><pre><code class="language-julia">fname = download(&quot;https://www.hl7.org/fhir/R4/patient-example.json&quot;)</code></pre><p>Alternatively, we&#39;ve packaged the R4 FHIR specification, with examples, as Julia <em>Artifact</em> so they can be accessed via <code>artifact&quot;fhir-r4&quot;</code>.</p><pre><code class="language-julia">using Pkg.Artifacts
+
+fname = joinpath(artifact&quot;fhir-r4&quot;, &quot;fhir-r4&quot;, &quot;patient-example.json&quot;)
+#-&gt; …/fhir-r4/patient-example.json&quot;</code></pre><p>Regardless, the content for this downloaded file is JSON. It could be read directly and printed to the terminal.</p><pre><code class="language-julia">println(read(fname, String))
+#=&gt;
+{
+  &quot;resourceType&quot;: &quot;Patient&quot;,
+  &quot;id&quot;: &quot;example&quot;,
+⋮
+  &quot;name&quot;: [
+    {
+      &quot;use&quot;: &quot;official&quot;,
+      &quot;family&quot;: &quot;Chalmers&quot;,
+⋮
+=#</code></pre><p>We can then then use the <code>JSON</code> module to parse it. This will return a top-level dictionary.</p><pre><code class="language-julia">using JSON
+
+resource = JSON.parsefile(fname)
+display(resource)
+#=&gt;
+Dict{String,Any} with 14 entries:
+  &quot;active&quot;               =&gt; true
+  &quot;managingOrganization&quot; =&gt; Dict{String,Any}(&quot;reference&quot;=&gt;&quot;Organizati…
+  &quot;address&quot;              =&gt; Any[Dict{String,Any}(&quot;line&quot;=&gt;Any[&quot;534 Ere…
+  &quot;name&quot;                 =&gt; Any[Dict{String,Any}(&quot;family&quot;=&gt;&quot;Chalmers&quot;…
+⋮
+=#</code></pre><p>Querying this structure could be done with native Julia. The following would return family names listed for this patient resource.</p><pre><code class="language-julia">[item[&quot;family&quot;]
+ for item in resource[&quot;name&quot;]
+ if haskey(item, &quot;family&quot;) ]
+#=&gt;
+[&quot;Chalmers&quot;, &quot;Windsor&quot;]
+=#</code></pre><p>To more easily query this resource, let&#39;s use DataKnots and an adapter to FHIR data sources.</p><pre><code class="language-julia">using DataKnots
+using DataKnots4FHIR</code></pre><p>However, since JSON is schemaless, DataKnots can&#39;t easily work with it directly. If we convert this input to a DataKnot, we&#39;ll see it&#39;s not fully converted into something usable.</p><pre><code class="language-julia">resource = convert(DataKnot, JSON.parsefile(fname))
+#=&gt;
+┼────────────────────────────────────────────────────────────────────…
+│ Dict{String,Any}(\&quot;active\&quot;=&gt;true,\&quot;managingOrganization\&quot;=&gt;Dict{St…
+=#</code></pre><p>The <code>FHIRProfile</code> query constructor provides the needed schema by converting the FHIR resource definition from the HL7 specification.  For example, let&#39;s build a query reflecting the the FHIR R4 <a href="https://www.hl7.org/fhir/r4/patient.html">Patient</a> profile. What the <span>$Patient$</span> query does is rather involved, so we&#39;ll skip that for now, using the semicolon to suppress printing its definition.</p><pre><code class="language-julia">Patient = FHIRProfile(:R4, &quot;Patient&quot;);</code></pre><p>With this <span>$Patient$</span> query, the above inquiry, we can once again list all of the family names used by the patient resource. This example uses the DataKnots macro syntax; where the <span>$Patient$</span> query is referenced using the dollar sign (<span>$$$</span>).</p><pre><code class="language-julia">@query resource $Patient.name.family
+#=&gt;
+  │ family   │
+──┼──────────┼
+1 │ Chalmers │
+2 │ Windsor  │
+=#</code></pre><p>With this syntax, the <span>$name$</span> field in each <span>$Patient$</span> is defined by the <a href="https://www.hl7.org/fhir/r4/datatypes.html#HumanName">HumanName</a> element. With this <span>$Patient$</span> schema query, the incoming data knot is structured so that it could be intelligibly queried. For example, we could return all of the <span>$given$</span> names of this patient associated with the <span>$&quot;Windsor&quot;$</span> family name.</p><pre><code class="language-julia">@query resource $Patient.name.filter(family==&quot;Windsor&quot;).given
+#=&gt;
+  │ given │
+──┼───────┼
+1 │ Peter │
+2 │ James │
+=#</code></pre><p>To make it easy to explore these profiles, we have a helper constructor, <span>$FHIRExample$</span>, which finds a specification example by its identifier, loads it as JSON, and converts it into a DataKnot for us. Hence, the following is the minimal code needed to get up-and-running.</p><pre><code class="language-julia">using DataKnots
+using DataKnots4FHIR
+
+Patient = FHIRProfile(:R4, &quot;Patient&quot;);
+resource = FHIRExample(:R4, &quot;Patient&quot;, &quot;example&quot;);
+
+@query resource $Patient
+#=&gt;
+│ Patient                                                            …
+│ resource… id       meta{id,… implicit… language  text{id,… containe…
+┼────────────────────────────────────────────────────────────────────…
+│ Patient   example                                missing,…         …
+=#</code></pre><p>What exactly does the <span>$Patient$</span> profile do?</p><h3 id="Profile-Queries"><a class="docs-heading-anchor" href="#Profile-Queries">Profile Queries</a><a id="Profile-Queries-1"></a><a class="docs-heading-anchor-permalink" href="#Profile-Queries" title="Permalink"></a></h3><p>Directly querying a JSON encoded FHIR resource is challenging. Since JSON is schemaless, we don&#39;t know in advance if a given data element is a scalar value represented as a <span>$String$</span> or <span>$Integer`, or a nested structure represented as a$</span>Dict<span>$, or some other kind of object. We can use DataKnot&#39;s$</span>show(as=:shape, <em>knot</em>)`` function to look at the structure of a dataknot.</p><pre><code class="language-julia">show(as=:shape, resource)
+#=&gt;
+1-element DataKnot:
+  #  Dict{String,Any}
+=#</code></pre><p>DataKnots lets us query dictionaries by key. Hence, we could return the <span>$resourceType$</span> of this FHIR resource.</p><pre><code class="language-julia">@query resource resourceType
+#=&gt;
+│ resourceType │
+┼──────────────┼
+│ Patient      │
+=#</code></pre><p>However, things get complex when we try to return the list of <span>$name$</span> elements associated with the resource. Suppose we want to return a list of family names, one might try to write <span>$name.family$</span>.</p><pre><code class="language-julia">@query resource name.family
+#=&gt;
+ERROR: cannot find &quot;family&quot; at
+(1:1) × Any
+=#</code></pre><p>DataKnots cannot determine the output type of <span>$@query resource name$</span>, and such it&#39;s listed as a singular value <span>$Any$</span>.</p><pre><code class="language-julia">show(as=:shape, @query resource name)
+#=&gt;
+1-element DataKnot:
+  name  1:1 × Any
+=#</code></pre><p>From inspection, we can see that the output is actually a vector of dictionaries.</p><pre><code class="language-julia">@query resource name
+#=&gt;
+│ name                                                               …
+┼────────────────────────────────────────────────────────────────────…
+│ Any[Dict{String,Any}(\&quot;family\&quot;=&gt;\&quot;Chalmers\&quot;,\&quot;given\&quot;=&gt;Any[\&quot;Pete…
+=#</code></pre><p>We could let DataKnots know that <code>name</code> is a vector of dictionaries using the <span>$Is$</span> combinator as follows.</p><pre><code class="language-julia">@define isVector() = is(Vector{Any})
+@define isDict() = is(Dict{String, Any})
+@define isString() = is(String)
+
+@query resource name.isVector().isDict()
+#=&gt;
+  │ name                                                             …
+──┼──────────────────────────────────────────────────────────────────…
+1 │ Dict{String,Any}(\&quot;family\&quot;=&gt;\&quot;Chalmers\&quot;,\&quot;given\&quot;=&gt;Any[\&quot;Peter\…
+2 │ Dict{String,Any}(\&quot;given\&quot;=&gt;Any[\&quot;Jim\&quot;],\&quot;use\&quot;=&gt;\&quot;usual\&quot;)     …
+3 │ Dict{String,Any}(\&quot;family\&quot;=&gt;\&quot;Windsor\&quot;,\&quot;given\&quot;=&gt;Any[\&quot;Peter\&quot;…
+=#</code></pre><p>Then, we could return the list of <span>$family$</span> names; except this has its own problem. The second entry provides a nickname, and the family name is optional, shown here as missing, rather than being omitted.</p><pre><code class="language-julia">@query resource name.isVector().isDict().family
+#=&gt;
+  │ family   │
+──┼──────────┼
+1 │ Chalmers │
+2 │ missing  │
+3 │ Windsor  │
+=#
+
+show(as=:shape,
+  @query resource name.isVector().isDict().family)
+#=&gt;
+3-element DataKnot:
+  family  0:N × Any
+=#</code></pre><p>This can be addressed by specifying the datatype of <span>$family$</span> is <span>$Union{String, Missing}$</span>. In this case, DataKnots knows that the <span>$missing$</span> value should be omitted in the query result.</p><pre><code class="language-julia">@define isOptString() = is(Union{String, Missing})
+
+@query resource name.isVector().isDict().family.isOptString()
+#=&gt;
+  │ family   │
+──┼──────────┼
+1 │ Chalmers │
+2 │ Windsor  │
+=#</code></pre><p>Providing this detail is what the <span>$Patient$</span> profile query does.</p><pre><code class="language-julia">Patient = FHIRProfile(:R4, &quot;Patient&quot;)
+@query resource $Patient.name.family
+#=&gt;
+  │ family   │
+──┼──────────┼
+1 │ Chalmers │
+2 │ Windsor  │
+=#</code></pre><p>This typing information beings with it another benefit. By default operations on a dictionary return <span>$missing$</span> if a key is omitted. Hence, if you have a typo, such as, <span>$resoursType$</span> instead of <span>$resourceType$</span>, you&#39;ll get a <span>$missing$</span> value rather than an error.</p><pre><code class="language-julia">@query resource resoursType
+#=&gt;
+│ resoursType │
+┼─────────────┼
+│ missing     │
+=#</code></pre><p>By applying the the <span>$Patient$</span> query, typos like this are errors.</p><pre><code class="language-julia">@query resource $Patient.resoursType
+#=&gt;
+ERROR: cannot find &quot;resoursType&quot; at
+(0:1) × (resourceType = (1:1) × String, …
+=#</code></pre><p>Moreover, this <span>$Patient$</span> profile can be used for introspection.</p><pre><code class="language-julia">show(as=:shape, @query resource $Patient.name)
+#=&gt;
+3-element DataKnot:
+  name           0:N
+  ├╴id           0:1 × String
+  ├╴extension    0:N × Dict{String,Any}
+  ├╴use          0:1 × String
+  ├╴text         0:1 × String
+  ├╴family       0:1 × String
+  ├╴given        0:N × String
+⋮
+=#</code></pre><h3 id="Exceptional-Cases"><a class="docs-heading-anchor" href="#Exceptional-Cases">Exceptional Cases</a><a id="Exceptional-Cases-1"></a><a class="docs-heading-anchor-permalink" href="#Exceptional-Cases" title="Permalink"></a></h3><p>These generated profiles are not perfect. They are quite large and the FHIR schema has cycles. Therefore, these profiles stop expanding once an element has been seen before. Moreover, extensions are not expanded. Sometimes access to extensions is needed. The <code>&quot;newborn&quot;</code>` specification example has an example of an extension.</p><pre><code class="language-julia">newborn = FHIRExample(:R4, &quot;Patient&quot;, &quot;newborn&quot;);
+
+@query newborn $Patient.extension
+#=&gt;
+  │ extension                                                      …
+──┼────────────────────────────────────────────────────────────────…
+1 │ Dict{String,Any}(\&quot;valueString\&quot;=&gt;\&quot;Everywoman\&quot;,\&quot;url\&quot;=&gt;\&quot;htt…
+=#</code></pre><p>To work with the extension, we could use the <span>$Extension$</span> profile.</p><pre><code class="language-julia">Extension = FHIRProfile(:R4, &quot;Extension&quot;);
+
+@query newborn begin
+    $Patient.extension.$Extension.
+     filter(endswith(url, &quot;patient-mothersMaidenName&quot;)).
+     valueString
+end
+#=&gt;
+  │ valueString │
+──┼─────────────┼
+1 │ Everywoman  │
+=#</code></pre><p>It&#39;s often handy to convert these into a query, so they can be reused. We do this below using DataKnots&#39; Julia syntax. We&#39;ll check for equality on the entire URL and additionally assert there is at most one result.</p><pre><code class="language-julia">MothersMaidenName = Is0to1(
+    It.extension &gt;&gt; Extension &gt;&gt;
+    Filter(It.url .== string(&quot;http://hl7.org/fhir/StructureDefinition/&quot;,
+                             &quot;patient-mothersMaidenName&quot;)) &gt;&gt;
+    It.valueString) &gt;&gt; Label(:mothersMaidenName);
+
+@query newborn $Patient.$MothersMaidenName
+#=&gt;
+│ mothersMaidenName │
+┼───────────────────┼
+│ Everywoman        │
+=#</code></pre><p>Sometimes scalar field values, such as <code>birthDate</code> have an extension; we do not represent these either. To permit access, at every level of the hierarchy, we provide a special underscore attribute that gives access to the underlying JSON source for that component.</p><pre><code class="language-julia">@query resource $Patient._
+#=&gt;
+│ _                                                                  …
+┼────────────────────────────────────────────────────────────────────…
+│ Dict{String,Any}(\&quot;active\&quot;=&gt;true,\&quot;managingOrganization\&quot;=&gt;Dict{St…
+=#</code></pre><p>From there, one could access the extension for <code>birthDate</code>.</p><pre><code class="language-julia">@query resource $Patient._._birthDate
+#=&gt;
+│ _birthDate                                                         …
+┼────────────────────────────────────────────────────────────────────…
+│ Dict{String,Any}(\&quot;extension\&quot;=&gt;Any[Dict{String,Any}(\&quot;valueDateTim…
+=#</code></pre><p>However, using the underlying <span>$Dict$</span> is complex. In particular, one must handle not only providing type information as described earlier, but also, convert missing values into empty lists using <span>$coalesce$</span>. There is a helper function that does this for you.</p><pre><code class="language-julia">BirthInfo = FHIRField(:R4, &quot;_birthDate&quot;);
+
+@query resource $Patient.$BirthInfo
+#=&gt;
+│ _birthDate                                                          │
+│ id  extension{id,extension,url,valueAddress{id,extension,use,type,t…│
+┼─────────────────────────────────────────────────────────────────────┼
+│     missing, [], http://hl7.org/fhir/StructureDefinition/patient-bi…│
+=#</code></pre><p>Using this, one could define another custom combinator.</p><pre><code class="language-julia">BirthTime = Is0to1(
+    FHIRField(:R4, &quot;_birthDate&quot;) &gt;&gt; It.extension &gt;&gt;
+    Filter(It.url .== string(&quot;http://hl7.org/fhir/StructureDefinition/&quot;,
+                             &quot;patient-birthTime&quot;)) &gt;&gt;
+    It.valueDateTime) &gt;&gt; Label(:birthTime);
+
+@query newborn $Patient.$BirthTime
+#=&gt;
+│ birthTime                 │
+┼───────────────────────────┼
+│ 2017-05-09T17:11:00+01:00 │
+=#</code></pre><h3 id="DataType-Handling"><a class="docs-heading-anchor" href="#DataType-Handling">DataType Handling</a><a id="DataType-Handling-1"></a><a class="docs-heading-anchor-permalink" href="#DataType-Handling" title="Permalink"></a></h3><p>As part of the casting, date and time values are converted. This makes it easy to do date comparison.</p><pre><code class="language-julia">using Dates
+
+example = FHIRExample(:R4, &quot;Patient&quot;, &quot;example&quot;)
+
+@query example $Patient.filter(birthDate&lt;Date(&quot;1979-12-31&quot;)).birthDate
+#=&gt;
+│ birthDate  │
+┼────────────┼
+│ 1974-12-25 │
+=#</code></pre><p>However, since the underlying Julia implementation doesn&#39;t create an error if a string is compared to a date; therefore, you can have some rather unexpected behavior.</p><pre><code class="language-julia">@query example $Patient.filter(birthDate==&quot;1974-12-25&quot;).id
+#=&gt;
+│ id │
+┼────┼
+(empty)
+=#</code></pre><p>To get an actual match, a <code>Date</code> has to be constructed.</p><pre><code class="language-julia">@query example $Patient.filter(birthDate==Date(&quot;1974-12-25&quot;)).id
+#=&gt;
+│ id      │
+┼─────────┼
+│ example │
+=#</code></pre><p>This could perhaps be addressed if we used the congruent operator?</p><pre><code class="language-julia">≅(a::T, b::T) where {T} = a == b
+≅(a, b) = ≅(promote(a, b)...)
+
+@query example $Patient.filter(birthDate≅ Date(&quot;1974-12-25&quot;)).id
+#=&gt;
+│ id      │
+┼─────────┼
+│ example │
+=#
+
+@query example $Patient.filter(birthDate≅ &quot;1974-12-25&quot;).id
+#=&gt;
+ERROR: cannot apply ≅ to Tuple{Union{Missing, Date},String}
+=#</code></pre></article><nav class="docs-footer"><a class="docs-footer-nextpage" href="../profile/">Profile »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 12 August 2020 21:33">Wednesday 12 August 2020</span>. Using Julia version 1.5.0.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
