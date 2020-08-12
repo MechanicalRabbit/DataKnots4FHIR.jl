@@ -6,11 +6,11 @@ license. This work is also released under an Evaluation License.
 ### BuyLibre License
 
 So that we can build a commercially supported ecosystem of useful
-applications and adapters surrounding the DataKnots platform, we
-will be using BuyLibre (https://buylibre.org) cooperative licensing
-for vertical market software components such as this one. BuyLibre
-is a collective copyright licensing society, similar to ASCAP, 
-cooperatively owned by creators. Under the BuyLibre license, our
+applications and adapters surrounding the DataKnots platform, we will be
+using BuyLibre (https://buylibre.org) cooperative licensing for vertical
+market software components such as this one. BuyLibre is a collective
+copyright licensing society, similar to ASCAP, cooperatively owned by
+creators (see https://creators.coop). Under the BuyLibre license, our
 intent is to recover costs, after which the given version will be
 released under the MIT/Apache license. At this time, the BuyLibre
 license is still under construction; commercial license to use this
