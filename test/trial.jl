@@ -1,3 +1,5 @@
+#!/usr/bin/env julia
+
 using DataKnots
 using DataKnots4FHIR
 using Dates
@@ -15,7 +17,7 @@ end
 db = convert(DataKnot, (bundle=bucket,))
 @define MeasurePeriod = interval("[2018-01-01..2019-01-01)")
 print("defining query...")
-@time include("cms124v7.jl")
+@time include(joinpath(@__DIR__, "../doc/src/cms124v7.jl"))
 print("binding to QDM...")
 @time q = @query bundle.QDM.{Numerator, Denominator, DenominatorExclusions}
 print("assemble query...")

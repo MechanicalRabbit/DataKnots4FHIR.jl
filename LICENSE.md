@@ -13,8 +13,9 @@ copyright licensing society, similar to ASCAP, cooperatively owned by
 creators (see https://creators.coop). Under the BuyLibre license, our
 intent is to recover costs, after which the given version will be
 released under the MIT/Apache license. At this time, the BuyLibre
-license is still under construction; commercial license to use this
-work can be obtained by emailing info@buylibre.org.
+license is still under construction; individual commercial license to
+use this work or a out-right "ransom" price to make this entire work
+MIT/Apache can be obtained by emailing info@buylibre.org.
 
 ### Evaluation License
 
