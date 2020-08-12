@@ -3,6 +3,9 @@
 using Documenter
 using DataKnots4FHIR
 
+# Setup for doctests embedded in docstrings.
+DocMeta.setdocmeta!(DataKnots4FHIR, :DocTestSetup, :(using DataKnots4FHIR))
+
 # Highlight indented code blocks as Julia code.
 using Documenter.Expanders: ExpanderPipeline, Selectors, Markdown, iscode
 abstract type DefaultLanguage <: ExpanderPipeline end
@@ -16,9 +19,10 @@ makedocs(
     sitename = "DataKnots4FHIR.jl",
     format = Documenter.HTML(prettyurls=(get(ENV, "CI", nothing) == "true")),
     pages = [
+        "Home" => "index.md",
         "Overview" => "overview.md",
         "Profile" => "profile.md",
-        "An eCQM" => "ecqm.md",
+        "CMS124v7" => "cms124v7.md",
     ],
     modules = [DataKnots4FHIR])
 

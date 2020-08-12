@@ -1,7 +1,7 @@
 name = "DataKnots4FHIR"
 uuid = "ab76b815-26a5-47b3-ad9d-b1b88f8ee454"
 authors = ["Clark C. Evans <cce@clarkevans.com>"]
-version = "0.1.0"
+version = "0.2.0"
 
 [deps]
 Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
