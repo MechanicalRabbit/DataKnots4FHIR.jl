@@ -2,14 +2,11 @@
 
 This workbook demonstrates how `DataKnots` could be used to construct a
 domain specific query language (DSQL) for modeling Clinical Quality
-Measures (CQMs). By modeling 4 electronic CQMs, [CMS104v8](
-https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS104v8.html),
-[CMS124v7](
-https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS124v7.html),
-[CMS125v7](
-https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS125v7.html),
-and [CMS130v7](
-https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS130v7.html),
+Measures (CQMs). By modeling 4 electronic CQMs, 
+[CMS104v8](https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS104v8.html),
+[CMS124v7](https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS124v7.html),
+[CMS125v7](https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS125v7.html),
+and [CMS130v7](https://ecqi.healthit.gov/sites/default/files/ecqm/measures/CMS130v7.html),
 we provide a direct comparison to the Clinical Quality Language (CQL).
 To get started, we must import modules relevant to our project.
 
@@ -21,8 +18,8 @@ To get started, we must import modules relevant to our project.
     using Pkg.Artifacts
 
 Next, let's create an in-memory test database with synthetic patient
-bundles. This Synthea dataset was provided via a HL7 [connectathon](
-https://github.com/DBCG/connectathon/tree/master/fhir3/supplemental-tests).
+bundles. This Synthea dataset was provided via a HL7
+[connectathon](https://github.com/DBCG/connectathon/tree/master/fhir3/supplemental-tests).
 For each measure, this database consists of 20 patient records, 10 that
 are in the numerator of the eCQM ("pass"), and 10 that are not ("fail").
 
