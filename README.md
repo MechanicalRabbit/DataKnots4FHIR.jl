@@ -2,7 +2,7 @@
 
 **Documentation** | **Build Status** | **Process**
 :---: | :---: | :---:
-[![Development Documentation][doc-dev-img]][doc-dev-url] | [![Linux Build Status][travis-img]][travis-url] [![Code Coverage Status][codecov-img]][codecov-url] | [![Chat on Gitter][gitter-img]][gitter-url] [![Open Issues][issues-img]][issues-url] [![BuyLibre License][license-img]][license-url]
+[![Development Documentation][doc-dev-img]][doc-dev-url] | [![Linux Build Status][travis-img]][travis-url] [![Code Coverage Status][codecov-img]][codecov-url] | [![Chat on Zulip][chat-img]][chat-url] [![Open Issues][issues-img]][issues-url] [![BuyLibre License][license-img]][license-url]
 
 *DataKnots4FHIR provides DataKnot interface to Fast Healthcare
 Interoperability Resources (FHIR) data sources and an analogue to the
@@ -19,5 +19,5 @@ quality measures (eCQMs).*
 [doc-dev-url]: https://mechanicalrabbit.github.io/DataKnots4FHIR.jl/dev/
 [license-img]: https://img.shields.io/badge/LICENSE-BuyLibre-Orange
 [license-url]: https://buylibre.org
-[gitter-img]: https://img.shields.io/gitter/room/rbt-lang/rbt-proto.svg?color=%23753a88
-[gitter-url]: https://gitter.im/rbt-lang/rbt-proto/
+[chat-img]: https://img.shields.io/badge/chat-julia--zulip-blue
+[chat-url]: https://julialang.zulipchat.com/#narrow/stream/247484-dataknots.2Ejl
