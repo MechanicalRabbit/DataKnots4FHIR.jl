@@ -3,13 +3,13 @@ git-tree-sha1 = "ed1dc2cc61898b165c38ecdfc8cb5f354747d2af"
 
     [[fhir-r4.download]]
     sha256 = "9860f332ca828a1463c3d657f6f8b4ee43855d80f8fb95d0957d91e4994bd56b"
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/fhir-r4-2019-10-30.tar.gz"
+    url = "https://github.com/MechanicalRabbit/fhir-artifacts/raw/master/fhir-r4-2019-10-30.tar.gz"
 
 [fhir-stu3]
 git-tree-sha1 = "52c55258d528e0274165f2c3679be74e029eb674"
 
     [[fhir-stu3.download]]
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/fhir-stu3-2019-10-24.tar.gz"
+    url = "https://github.com/MechanicalRabbit/fhir-artifacts/raw/master/fhir-stu3-2019-10-24.tar.gz"
     sha256 = "3101fdeac37cd1c50213a533ba25e701b0cdeae348d8da1b24a0482f4d18859f"
 
 [synthea-116]
@@ -17,18 +17,18 @@ git-tree-sha1 = "715bd0352208aff4842d67ef32c2e5e355bfd559"
 
     [[synthea-116.download]]
     sha256 = "14534c9271d571cd2caf5934cb9d5f5eefb1113342472a817b827ede5fb28a78"
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/synthea-116-20200705.tar.gz"
+    url = "https://github.com/MechanicalRabbit/fhir-artifacts/raw/master/synthea-116-20200705.tar.gz"
 
 [synthea-79]
 git-tree-sha1 = "57de5c4c10a019b26649ca3453b9a7c6f69f483e"
 
     [[synthea-79.download]]
     sha256 = "db63a7976361546c771f6cf10b02f79dee68d17a3b1bcc4457d53937090eda50"
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/synthea-79-20200106.tar.gz"
+    url = "https://github.com/MechanicalRabbit/fhir-artifacts/raw/master/synthea-79-20200106.tar.gz"
 
 [vsac-2020]
 git-tree-sha1 = "9000df7c60554871969371412a9efbed06bcb118"
 
     [[vsac-2020.download]]
     sha256 = "693070b2f8e73ba06635912315db72eaddf7ed0001130f1ceb1b8758b8bb2dbc"
-    url = "https://github.com/rbt-lang/fhir-artifacts/raw/master/vsac-20200507.tar.gz"
+    url = "https://github.com/MechanicalRabbit/fhir-artifacts/raw/master/vsac-20200507.tar.gz"

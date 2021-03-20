@@ -27,5 +27,5 @@ makedocs(
     modules = [DataKnots4FHIR])
 
 deploydocs(
-    repo = "github.com/rbt-lang/DataKnots4FHIR.jl.git",
+    repo = "github.com/MechanicalRabbit/DataKnots4FHIR.jl.git",
 )
